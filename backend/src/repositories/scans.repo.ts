@@ -8,6 +8,7 @@ export interface ScanRow {
 
 export interface ScanItemRow {
   name: string;
+  ingredient_id?: string | null;
   qty_display: number | null;
   unit_display: string | null;
   qty_base: number | null;
@@ -38,6 +39,7 @@ export async function insertFoods(fridgeId: string, items: ScanItemRow[], client
   if (items.length === 0) return 0;
   const rows = items.map((i) => ({
     fridge_id: fridgeId,
+    ingredient_id: i.ingredient_id ?? null,
     name: i.name,
     qty_display: i.qty_display,
     unit_display: i.unit_display,
