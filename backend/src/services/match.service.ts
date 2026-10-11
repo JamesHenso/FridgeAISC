@@ -1,5 +1,6 @@
-import { supabaseAdmin } from "../config/supabase.js";
 import { fetchRecipeIngredients } from "../repositories/recipes.repo.js";
+import { fetchIngredients } from "../repositories/recipes.repo.js";
+import { resolveIngredientId } from "../lib/ingredients.js";
 import { containingAll } from "../lib/matchAll.js";
 
 export interface FridgeItem {
@@ -34,9 +35,9 @@ export function rankByMissing(
   for (const [id, rows] of byRecipe) {
     let missing = 0;
     for (const row of rows) {
-      if (!row.ingredientId || !haveIds.has(row.ingredientId)) {
-        if (row.qty_base == null) continue; // presence-only need unknown → not counted missing (conservative)
-        missing++;
+      if (!row.ingredientId) continue; // unknown ingredient, can't judge
+      if (!haveIds.has(row.ingredientId)) {
+        missing++; // need it, don't have it (qty irrelevant)
       } else if (row.qty_base != null) {
         const fq = fridgeQty.get(row.ingredientId);
         if (fq != null && fq < row.qty_base) missing++;
@@ -52,10 +53,16 @@ export async function matchRecipes(
   fridge: FridgeItem[],
   opts: { requireAll?: boolean; recipeIds?: string[] } = {},
   fetchFn = fetchRecipeIngredients,
+  fetchIngs = fetchIngredients,
 ): Promise<RankedRecipe[]> {
-  const rows = await fetchFn(opts.recipeIds);
+  const [rows, ings] = await Promise.all([fetchFn(opts.recipeIds), fetchIngs()]);
+  // Raw input (scan/manual names) -> ingredient_id; unresolvable names stay null (skipped in rank).
+  const resolved = fridge.map((f) => ({
+    ...f,
+    ingredientId: f.ingredientId ?? resolveIngredientId(f.name, ings),
+  }));
   if (opts.requireAll) {
-    const ids = fridge.map((f) => f.ingredientId).filter(Boolean) as string[];
+    const ids = resolved.map((f) => f.ingredientId).filter(Boolean) as string[];
     const keep = new Set(
       containingAll(
         ids,
@@ -64,9 +71,9 @@ export async function matchRecipes(
     );
     return rankByMissing(
       rows.filter((r) => keep.has(r.recipeId)),
-      fridge,
+      resolved,
       true,
     );
   }
-  return rankByMissing(rows, fridge);
+  return rankByMissing(rows, resolved);
 }
