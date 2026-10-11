@@ -1,0 +1,100 @@
+{
+  "info": {
+    "name": "FridgeWise",
+    "description": "Test flow: signup -> signin -> fridge -> scan(items) -> commit -> match. Dien SUPABASE_URL + ANON_KEY, chay server (npm run dev), tat Confirm email tren Dashboard.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "SUPABASE_URL", "value": "https://xyzcompany.supabase.co" },
+    { "key": "ANON_KEY", "value": "PASTE_ANON_KEY" },
+    { "key": "BASE_URL", "value": "http://localhost:3000" },
+    { "key": "JWT", "value": "SIGNIN_DE_LAY_TOKEN" },
+    { "key": "FRIDGE_ID", "value": "" },
+    { "key": "SCAN_ID", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Signup",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "apikey", "value": "{{ANON_KEY}}" }],
+        "body": { "mode": "raw", "raw": "{\"email\": \"test@example.com\", \"password\": \"Test1234!\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{SUPABASE_URL}}/auth/v1/signup"
+      }
+    },
+    {
+      "name": "2. Signin (copy access_token -> JWT)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "apikey", "value": "{{ANON_KEY}}" }],
+        "body": { "mode": "raw", "raw": "{\"email\": \"test@example.com\", \"password\": \"Test1234!\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{SUPABASE_URL}}/auth/v1/token?grant_type=password"
+      }
+    },
+    {
+      "name": "3. Tao tu (copy id -> FRIDGE_ID)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "apikey", "value": "{{ANON_KEY}}" },
+          { "key": "Authorization", "value": "Bearer {{JWT}}" },
+          { "key": "Prefer", "value": "return=representation" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"name\": \"Tu nha\", \"invite_code\": \"NHA123\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{SUPABASE_URL}}/rest/v1/fridges"
+      }
+    },
+    {
+      "name": "4. Tao scan (copy id -> SCAN_ID)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "apikey", "value": "{{ANON_KEY}}" },
+          { "key": "Authorization", "value": "Bearer {{JWT}}" },
+          { "key": "Prefer", "value": "return=representation" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"fridge_id\": \"{{FRIDGE_ID}}\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{SUPABASE_URL}}/rest/v1/scans"
+      }
+    },
+    {
+      "name": "5. Nhap tay items",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "apikey", "value": "{{ANON_KEY}}" },
+          { "key": "Authorization", "value": "Bearer {{JWT}}" }
+        ],
+        "body": { "mode": "raw", "raw": "[{\"scan_id\": \"{{SCAN_ID}}\", \"name\": \"Trung\", \"qty_display\": 5, \"unit_display\": \"qua\", \"qty_base\": 5, \"base_unit\": \"pcs\"}, {\"scan_id\": \"{{SCAN_ID}}\", \"name\": \"Ca\", \"qty_display\": 2, \"unit_display\": \"qua\", \"qty_base\": 2, \"base_unit\": \"pcs\"}]", "options": { "raw": { "language": "json" } } },
+        "url": "{{SUPABASE_URL}}/rest/v1/scan_items"
+      }
+    },
+    {
+      "name": "6. Commit scan",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
+        "url": "{{BASE_URL}}/scans/{{SCAN_ID}}/commit"
+      }
+    },
+    {
+      "name": "7. Kiem tra foods",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "apikey", "value": "{{ANON_KEY}}" },
+          { "key": "Authorization", "value": "Bearer {{JWT}}" }
+        ],
+        "url": "{{SUPABASE_URL}}/rest/v1/foods?fridge_id=eq.{{FRIDGE_ID}}&select=name,qty_base,base_unit"
+      }
+    },
+    {
+      "name": "8. Match recipes",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
+        "url": "{{BASE_URL}}/recipes/match?fridge_id={{FRIDGE_ID}}"
+      }
+    }
+  ]
+}
