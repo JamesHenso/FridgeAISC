@@ -1,0 +1,6 @@
+fastapi>=0.143,<1
+uvicorn>=0.54,<1
+python-multipart>=0.0.20,<1
+python-dotenv>=1.2,<2
+azure-ai-documentintelligence>=1.0,<2
+-r requirements-retrieval.txt

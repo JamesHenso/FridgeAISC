@@ -1,0 +1,13 @@
+query,expected_id,expected_type
+thlt ba chi heo,82de1a34-cd5f-497a-b5c8-95570fe5a6f6,food
+thit ba chl heo,82de1a34-cd5f-497a-b5c8-95570fe5a6f6,food
+nuoc mam nam ngu,31ad5262-d767-4ba1-b109-ad78c6dbbe80,food
+bo lat anch0r,321bb46a-7bfe-40f2-8040-dcc400e3886f,food
+cha b0ng gion,e0339f94-3ed8-4393-a9bd-a3862b1f2ec6,food
+ot hiem bam,b0664d1c-8ee0-4424-9d29-54a49a4a24b4,food
+dau an tuong an 1l,565b1736-c434-40ce-a6bd-424ebe87139e,food
+kem danh rang,NF009,non_food
+giay ve slnh,NF024,non_food
+hop dung thuc pham,NF068,non_food
+sua tarn,NF006,non_food
+keo nha bep,NF062,non_food

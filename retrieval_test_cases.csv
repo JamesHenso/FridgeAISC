@@ -1,0 +1,29 @@
+query,expected_id,expected_type
+Thịt ba chỉ heo,82de1a34-cd5f-497a-b5c8-95570fe5a6f6,food
+Sả cây,7cca63e1-202c-445a-8334-0c18bf144d9a,food
+Chanh tươi,9e8f6ce8-df7c-457c-af2e-afd07a24327d,food
+Rau thơm các loại,c9091955-5caa-4382-bb5d-c245a059616a,food
+Bắp hạt Mỹ,b3dd84f3-7691-42d7-9157-aad82ee4ac9a,food
+Trứng gà hộp,89f8fa58-3a66-4115-a621-91fb287b63c9,food
+Bánh tráng dẻo,d523666d-ab4d-44ec-94ca-5b1b54a85bc7,food
+Chà bông giòn,e0339f94-3ed8-4393-a9bd-a3862b1f2ec6,food
+Xốt mè rang,d217dd57-9ac6-4a55-a45f-f90c44505b83,food
+Hạt nêm Aji Ngon heo,e8b805b4-9499-4c48-b582-f4e045be55b6,food
+Cá lăng tươi,bf973d79-277f-44ed-86b2-b296022f77a5,food
+Nước mắm Nam Ngư,31ad5262-d767-4ba1-b109-ad78c6dbbe80,food
+Gia vị nêm sẵn Aji Quick lẩu Thái,464cc506-7aaa-4084-a258-9cf99313b758,food
+Dầu ăn Tường An,565b1736-c434-40ce-a6bd-424ebe87139e,food
+Mắm ruốc Huế,643f4c19-4f2b-4e3e-90a4-de6c23d95b1e,food
+Sả băm,7cca63e1-202c-445a-8334-0c18bf144d9a,food
+Ớt hiểm băm,b0664d1c-8ee0-4424-9d29-54a49a4a24b4,food
+Bơ lạt Anchor,321bb46a-7bfe-40f2-8040-dcc400e3886f,food
+Đường cát trắng,66ecbf00-638b-4a2c-ae9b-0bfb28414357,food
+Dầu điều,09745e18-4e07-44b2-99a3-06aa365d65ca,food
+Kem đánh răng,NF009,non_food
+Sữa tắm,NF006,non_food
+Giấy vệ sinh,NF024,non_food
+Nồi inox,NF059,non_food
+Kéo nhà bếp,NF062,non_food
+Giấy ăn,NF025,non_food
+Dao bếp,NF061,non_food
+Hộp đựng thực phẩm,NF068,non_food

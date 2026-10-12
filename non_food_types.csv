@@ -1,0 +1,79 @@
+﻿id,name,category
+NF001,Dầu gội,Chăm sóc cá nhân
+NF002,Dầu xả,Chăm sóc cá nhân
+NF003,Kem ủ tóc,Chăm sóc cá nhân
+NF004,Keo vuốt tóc,Chăm sóc cá nhân
+NF005,Thuốc nhuộm tóc,Chăm sóc cá nhân
+NF006,Sữa tắm,Chăm sóc cá nhân
+NF007,Xà bông cục,Chăm sóc cá nhân
+NF008,Nước rửa tay,Chăm sóc cá nhân
+NF009,Kem đánh răng,Chăm sóc cá nhân
+NF010,Bàn chải đánh răng,Chăm sóc cá nhân
+NF011,Tăm chỉ nha khoa,Chăm sóc cá nhân
+NF012,Nước súc miệng,Chăm sóc cá nhân
+NF013,Sữa rửa mặt,Chăm sóc cá nhân
+NF014,Sản phẩm tẩy trang,Chăm sóc cá nhân
+NF015,Kem chống nắng,Chăm sóc cá nhân
+NF016,Sữa dưỡng thể,Chăm sóc cá nhân
+NF017,Kem dưỡng da,Chăm sóc cá nhân
+NF018,Serum dưỡng da,Chăm sóc cá nhân
+NF019,Lăn khử mùi,Chăm sóc cá nhân
+NF020,Xịt khử mùi,Chăm sóc cá nhân
+NF021,Dao cạo râu,Chăm sóc cá nhân
+NF022,Bọt cạo râu,Chăm sóc cá nhân
+NF023,Kem tẩy lông,Chăm sóc cá nhân
+NF024,Giấy vệ sinh,Chăm sóc cá nhân
+NF025,Khăn giấy,Chăm sóc cá nhân
+NF026,Khăn ướt,Chăm sóc cá nhân
+NF027,Tăm bông,Chăm sóc cá nhân
+NF028,Khẩu trang,Chăm sóc cá nhân
+NF029,Băng vệ sinh,Chăm sóc cá nhân
+NF030,Dung dịch vệ sinh cá nhân,Chăm sóc cá nhân
+NF031,Bao cao su,Chăm sóc cá nhân
+NF032,Nước giặt,Vệ sinh nhà cửa
+NF033,Bột giặt,Vệ sinh nhà cửa
+NF034,Nước xả vải,Vệ sinh nhà cửa
+NF035,Nước rửa chén,Vệ sinh nhà cửa
+NF036,Nước lau sàn,Vệ sinh nhà cửa
+NF037,Nước lau kính,Vệ sinh nhà cửa
+NF038,Nước lau bếp,Vệ sinh nhà cửa
+NF039,Chất tẩy rửa đa năng,Vệ sinh nhà cửa
+NF040,Nước tẩy,Vệ sinh nhà cửa
+NF041,Sản phẩm tẩy bồn cầu,Vệ sinh nhà cửa
+NF042,Sản phẩm tẩy nhà tắm,Vệ sinh nhà cửa
+NF043,Bột tẩy lồng giặt,Vệ sinh nhà cửa
+NF044,Xịt phòng,Vệ sinh nhà cửa
+NF045,Sáp thơm,Vệ sinh nhà cửa
+NF046,Túi thơm,Vệ sinh nhà cửa
+NF047,Nước xịt vải,Vệ sinh nhà cửa
+NF048,Bình xịt côn trùng,Vệ sinh nhà cửa
+NF049,Tã dán,Sản phẩm mẹ và bé
+NF050,Tã quần,Sản phẩm mẹ và bé
+NF051,Miếng lót sơ sinh,Sản phẩm mẹ và bé
+NF052,Khăn ướt cho bé,Sản phẩm mẹ và bé
+NF053,Sữa tắm cho bé,Sản phẩm mẹ và bé
+NF054,Dầu gội cho bé,Sản phẩm mẹ và bé
+NF055,Sản phẩm tắm gội toàn thân cho bé,Sản phẩm mẹ và bé
+NF056,Phấn rôm,Sản phẩm mẹ và bé
+NF057,Dầu dưỡng ẩm cho bé,Sản phẩm mẹ và bé
+NF058,Dầu massage cho bé,Sản phẩm mẹ và bé
+NF059,Nồi,Đồ dùng gia đình
+NF060,Chảo,Đồ dùng gia đình
+NF061,Dao nhà bếp,Đồ dùng gia đình
+NF062,Kéo,Đồ dùng gia đình
+NF063,Tô,Đồ dùng gia đình
+NF064,Chén,Đồ dùng gia đình
+NF065,Đĩa,Đồ dùng gia đình
+NF066,Ly,Đồ dùng gia đình
+NF067,Bình giữ nhiệt,Đồ dùng gia đình
+NF068,Hộp đựng thực phẩm,Đồ dùng gia đình
+NF069,Túi đựng thực phẩm,Đồ dùng gia đình
+NF070,Túi zipper,Đồ dùng gia đình
+NF071,Màng bọc thực phẩm,Đồ dùng gia đình
+NF072,Giấy thấm dầu,Đồ dùng gia đình
+NF073,Miếng rửa chén,Đồ dùng gia đình
+NF074,Nhấc nồi,Đồ dùng gia đình
+NF075,Lót nồi,Đồ dùng gia đình
+NF076,Lồng bàn,Đồ dùng gia đình
+NF077,Túi đựng rác,Đồ dùng gia đình
+NF078,Đồ dùng một lần,Đồ dùng gia đình
