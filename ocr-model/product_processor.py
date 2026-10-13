@@ -227,6 +227,24 @@ def current_local_date() -> str:
     return datetime.now(LOCAL_TIMEZONE).date().isoformat()
 
 
+def parse_qty_display(value) -> int | float | None:
+    """Coerce Azure Quantity to number for backend POST /scans (root fix)."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return value
+    text = str(value).strip().replace(",", ".")
+    if not text:
+        return None
+    try:
+        number = float(text)
+    except ValueError:
+        return None
+    if number.is_integer():
+        return int(number)
+    return number
+
+
 def find_top_document(raw_name: str) -> SearchDocument | None:
     """Return an exact database match or Dual BM25's top-1 result."""
 
@@ -253,7 +271,7 @@ def build_receipt_product(
     return {
         "name": document.name,
         "ingredient_id": document.id,
-        "qty_display": item.get("quantity"),
+        "qty_display": parse_qty_display(item.get("quantity")),
         # The receipt unit is authoritative. Never use CSV base_unit here.
         "unit_display": item.get("unit"),
         "purchased_at": current_date,
