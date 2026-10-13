@@ -198,7 +198,7 @@ class ProductProcessorTests(unittest.TestCase):
             {
                 "name": "Bơ lạt",
                 "ingredient_id": "321bb46a-7bfe-40f2-8040-dcc400e3886f",
-                "qty_display": "2",
+                "qty_display": 2,
                 "unit_display": "hộp",
                 "purchased_at": "2026-10-12",
                 "expiry_date": "2026-10-12",
