@@ -1,16 +1,27 @@
 {
   "info": {
     "name": "FridgeWise",
-    "description": "Test flow: signup -> signin -> fridge -> scan(items) -> commit -> match. Dien SUPABASE_URL + ANON_KEY, chay server (npm run dev), tat Confirm email tren Dashboard.",
+    "description": "Full flow: tat Confirm email tren Supabase Dashboard → chay server (npm run dev) → chay migration 013+014+015 → chay tu 1 toi 23 theo thu tu. Bien JWT/USER_ID/FRIDGE_ID/INVITE_CODE/SCAN_ID/ITEM_ID/FOOD_ID/RECIPE_ID tu dong dien qua Tests script, khong can copy tay. Can verify video_id co data truoc req 18.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "SUPABASE_URL", "value": "https://xyzcompany.supabase.co" },
     { "key": "ANON_KEY", "value": "PASTE_ANON_KEY" },
     { "key": "BASE_URL", "value": "http://localhost:3000" },
-    { "key": "JWT", "value": "SIGNIN_DE_LAY_TOKEN" },
+    { "key": "OCR_BASE_URL", "value": "http://localhost:8000" },
+    { "key": "JWT", "value": "" },
+    { "key": "USER_ID", "value": "" },
     { "key": "FRIDGE_ID", "value": "" },
-    { "key": "SCAN_ID", "value": "" }
+    { "key": "INGREDIENT_ID_1", "value": "" },
+    { "key": "INGREDIENT_NAME_1", "value": "" },
+    { "key": "INGREDIENT_ID_2", "value": "" },
+    { "key": "INGREDIENT_NAME_2", "value": "" },
+    { "key": "SCAN_ID", "value": "" },
+    { "key": "INVITE_CODE", "value": "" },
+    { "key": "FOOD_ID", "value": "" },
+    { "key": "RECIPE_ID", "value": "" },
+    { "key": "ITEM_ID_1", "value": "" },
+    { "key": "ITEM_ID_2", "value": "" }
   ],
   "item": [
     {
@@ -23,7 +34,20 @@
       }
     },
     {
-      "name": "2. Signin (copy access_token -> JWT)",
+      "name": "2. Signin (tu dong lay JWT + USER_ID)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const j = pm.response.json();",
+              "if (j.access_token) pm.collectionVariables.set('JWT', j.access_token);",
+              "if (j.user && j.user.id) pm.collectionVariables.set('USER_ID', j.user.id);"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "POST",
         "header": [{ "key": "apikey", "value": "{{ANON_KEY}}" }],
@@ -32,45 +56,145 @@
       }
     },
     {
-      "name": "3. Tao tu (copy id -> FRIDGE_ID)",
+      "name": "3. List Ingredients (tu dong lay 2 id + ten chuan)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const j = pm.response.json();",
+              "if (Array.isArray(j) && j.length > 0) {",
+              "  pm.collectionVariables.set('INGREDIENT_ID_1', j[0].id);",
+              "  pm.collectionVariables.set('INGREDIENT_NAME_1', j[0].name);",
+              "}",
+              "if (Array.isArray(j) && j.length > 1) {",
+              "  pm.collectionVariables.set('INGREDIENT_ID_2', j[1].id);",
+              "  pm.collectionVariables.set('INGREDIENT_NAME_2', j[1].name);",
+              "}"
+            ]
+          }
+        }
+      ],
       "request": {
-        "method": "POST",
-        "header": [
-          { "key": "apikey", "value": "{{ANON_KEY}}" },
-          { "key": "Authorization", "value": "Bearer {{JWT}}" },
-          { "key": "Prefer", "value": "return=representation" }
-        ],
-        "body": { "mode": "raw", "raw": "{\"name\": \"Tu nha\", \"invite_code\": \"NHA123\"}", "options": { "raw": { "language": "json" } } },
-        "url": "{{SUPABASE_URL}}/rest/v1/fridges"
-      }
-    },
-    {
-      "name": "4. Tao scan (copy id -> SCAN_ID)",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "apikey", "value": "{{ANON_KEY}}" },
-          { "key": "Authorization", "value": "Bearer {{JWT}}" },
-          { "key": "Prefer", "value": "return=representation" }
-        ],
-        "body": { "mode": "raw", "raw": "{\"fridge_id\": \"{{FRIDGE_ID}}\"}", "options": { "raw": { "language": "json" } } },
-        "url": "{{SUPABASE_URL}}/rest/v1/scans"
-      }
-    },
-    {
-      "name": "5. Nhap tay items",
-      "request": {
-        "method": "POST",
+        "method": "GET",
         "header": [
           { "key": "apikey", "value": "{{ANON_KEY}}" },
           { "key": "Authorization", "value": "Bearer {{JWT}}" }
         ],
-        "body": { "mode": "raw", "raw": "[{\"scan_id\": \"{{SCAN_ID}}\", \"name\": \"Trung\", \"qty_display\": 5, \"unit_display\": \"qua\", \"qty_base\": 5, \"base_unit\": \"pcs\"}, {\"scan_id\": \"{{SCAN_ID}}\", \"name\": \"Ca\", \"qty_display\": 2, \"unit_display\": \"qua\", \"qty_base\": 2, \"base_unit\": \"pcs\"}]", "options": { "raw": { "language": "json" } } },
-        "url": "{{SUPABASE_URL}}/rest/v1/scan_items"
+        "url": "{{SUPABASE_URL}}/rest/v1/Ingredients?select=id,name&order=name&limit=10"
       }
     },
     {
-      "name": "6. Commit scan",
+      "name": "4. Tao tu (tu dong lay FRIDGE_ID)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const j = pm.response.json();",
+              "const row = Array.isArray(j) ? j[0] : j;",
+              "if (row && row.id) pm.collectionVariables.set('FRIDGE_ID', row.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "apikey", "value": "{{ANON_KEY}}" },
+          { "key": "Authorization", "value": "Bearer {{JWT}}" },
+          { "key": "Prefer", "value": "return=representation" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"name\": \"Tu nha\", \"owner_id\": \"{{USER_ID}}\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{SUPABASE_URL}}/rest/v1/fridges"
+      }
+    },
+    {
+      "name": "4b. Tu cua toi (tu dong lay INVITE_CODE cua tu vua tao)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const j = pm.response.json();",
+              "const rows = Array.isArray(j) ? j : (j ? [j] : []);",
+              "const row = rows.find(r => r.id === pm.collectionVariables.get('FRIDGE_ID')) || rows[0];",
+              "if (row && row.invite_code) pm.collectionVariables.set('INVITE_CODE', row.invite_code);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
+        "url": "{{BASE_URL}}/fridges"
+      }
+    },
+    {
+      "name": "5. Tao scan (nhap tay hoac dan items tu OCR 5a, tu dong lay SCAN_ID + ITEM_ID_1/2)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const j = pm.response.json();",
+              "if (j.scanId) pm.collectionVariables.set('SCAN_ID', j.scanId);",
+              "if (j.items && j.items[0]) pm.collectionVariables.set('ITEM_ID_1', j.items[0].id);",
+              "if (j.items && j.items[1]) pm.collectionVariables.set('ITEM_ID_2', j.items[1].id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{JWT}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"fridge_id\": \"{{FRIDGE_ID}}\", \"items\": [{\"name\": \"{{INGREDIENT_NAME_1}}\", \"ingredient_id\": \"{{INGREDIENT_ID_1}}\", \"qty_display\": 2, \"unit_display\": \"kg\", \"purchased_at\": \"2026-10-12\", \"expiry_date\": \"2026-10-20\"}, {\"name\": \"{{INGREDIENT_NAME_2}}\", \"ingredient_id\": \"{{INGREDIENT_ID_2}}\", \"qty_display\": 10, \"unit_display\": \"qua\", \"purchased_at\": \"2026-10-12\", \"expiry_date\": \"2026-10-15\"}]}", "options": { "raw": { "language": "json" } } },
+        "url": "{{BASE_URL}}/scans"
+      }
+    },
+    {
+      "name": "5a. OCR receipt scan (multipart, chay tren OCR service)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": { "mode": "formdata", "formdata": [{ "key": "file", "type": "file", "description": "Chon anh hoa don JPG/PNG hoac file PDF" }] },
+        "url": "{{OCR_BASE_URL}}/api/receipts/scan",
+        "description": "Upload hoa don len ocr-model (khong can auth). Response {items: [{name, ingredient_id, qty_display (number), unit_display, purchased_at, expiry_date}]}. Copy items kem FRIDGE_ID sang request 5 de tao scan, bo qua mon non-food/unmatched da bi loai."
+      }
+    },
+    {
+      "name": "6. Sua so luong / ngay (xac nhan 1)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{JWT}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"items\": [{\"id\": \"{{ITEM_ID_1}}\", \"qty_display\": 3, \"unit_display\": \"kg\", \"purchased_at\": \"2026-10-12\", \"expiry_date\": \"2026-10-21\"}]}", "options": { "raw": { "language": "json" } } },
+        "url": "{{BASE_URL}}/scans/{{SCAN_ID}}/items"
+      }
+    },
+    {
+      "name": "7. Xep ngan (xac nhan 2, drag-drop)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{JWT}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"items\": [{\"id\": \"{{ITEM_ID_1}}\", \"location\": \"freezer\"}, {\"id\": \"{{ITEM_ID_2}}\", \"location\": \"fridge\"}]}", "options": { "raw": { "language": "json" } } },
+        "url": "{{BASE_URL}}/scans/{{SCAN_ID}}/locations"
+      }
+    },
+    {
+      "name": "8. Commit scan",
       "request": {
         "method": "POST",
         "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
@@ -78,22 +202,194 @@
       }
     },
     {
-      "name": "7. Kiem tra foods",
+      "name": "9a. Inventory - ngan mat",
       "request": {
         "method": "GET",
-        "header": [
-          { "key": "apikey", "value": "{{ANON_KEY}}" },
-          { "key": "Authorization", "value": "Bearer {{JWT}}" }
-        ],
-        "url": "{{SUPABASE_URL}}/rest/v1/foods?fridge_id=eq.{{FRIDGE_ID}}&select=name,qty_base,base_unit"
+        "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
+        "url": "{{BASE_URL}}/fridges/{{FRIDGE_ID}}/foods?location=fridge"
       }
     },
     {
-      "name": "8. Match recipes",
+      "name": "9b. Inventory - ngan dong",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
+        "url": "{{BASE_URL}}/fridges/{{FRIDGE_ID}}/foods?location=freezer"
+      }
+    },
+    {
+      "name": "10. Inventory - stats (4 the)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
+        "url": "{{BASE_URL}}/fridges/{{FRIDGE_ID}}/stats"
+      }
+    },
+    {
+      "name": "11. Match recipes (top 10 card, tu dong lay RECIPE_ID du phong)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const j = pm.response.json();",
+              "const row = Array.isArray(j) ? j[0] : j;",
+              "if (row && row.id) pm.collectionVariables.set('RECIPE_ID', row.id);"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
         "url": "{{BASE_URL}}/recipes/match?fridge_id={{FRIDGE_ID}}"
+      }
+    },
+    {
+      "name": "12. Search foods (tu dong lay FOOD_ID)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const j = pm.response.json();",
+              "const row = Array.isArray(j) ? j[0] : j;",
+              "if (row && row.id) pm.collectionVariables.set('FOOD_ID', row.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
+        "url": "{{BASE_URL}}/fridges/{{FRIDGE_ID}}/foods?q={{INGREDIENT_NAME_1}}"
+      }
+    },
+    {
+      "name": "13. Sua mon trong tu",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{JWT}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"qty_display\": 5, \"unit_display\": \"kg\", \"expiry_date\": \"2026-10-25\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{BASE_URL}}/fridges/foods/{{FOOD_ID}}"
+      }
+    },
+    {
+      "name": "14. Doi ten tu",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{JWT}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"name\": \"Tu nha moi\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{BASE_URL}}/fridges/{{FRIDGE_ID}}"
+      }
+    },
+    {
+      "name": "15. Search recipes (tu dong lay RECIPE_ID)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const j = pm.response.json();",
+              "const row = Array.isArray(j) ? j[0] : j;",
+              "if (row && row.id) pm.collectionVariables.set('RECIPE_ID', row.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
+        "url": "{{BASE_URL}}/recipes/search?limit=10"
+      }
+    },
+    {
+      "name": "15b. Search recipes theo ten (optional, tu sua name)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
+        "url": "{{BASE_URL}}/recipes/search?name=com%20chien&limit=10"
+      }
+    },
+    {
+      "name": "16. Chi tiet mon (info + nguyen lieu + steps + haveNeed theo tu)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
+        "url": "{{BASE_URL}}/recipes/{{RECIPE_ID}}?fridge_id={{FRIDGE_ID}}"
+      }
+    },
+    {
+      "name": "17. Xoa mon trong tu (chay cuoi)",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
+        "url": "{{BASE_URL}}/fridges/foods/{{FOOD_ID}}"
+      }
+    },
+    {
+      "name": "18. Reels (video ngau nhien)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
+        "url": "{{BASE_URL}}/recipes/reels?limit=10"
+      }
+    },
+    {
+      "name": "19. Tym mon (like + tang like_count)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{JWT}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"recipe_id\": \"{{RECIPE_ID}}\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{BASE_URL}}/favorites"
+      }
+    },
+    {
+      "name": "20. Mon da thich (kiem tra sau khi tym)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
+        "url": "{{BASE_URL}}/favorites"
+      }
+    },
+    {
+      "name": "21. Bo thich (chay sau 20)",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
+        "url": "{{BASE_URL}}/favorites/{{RECIPE_ID}}"
+      }
+    },
+    {
+      "name": "22. Thanh vien tu",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{JWT}}" }],
+        "url": "{{BASE_URL}}/fridges/{{FRIDGE_ID}}/members"
+      }
+    },
+    {
+      "name": "23. Join tu bang code (user khac join, user hien tai tra already:true)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{JWT}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\"code\": \"{{INVITE_CODE}}\"}", "options": { "raw": { "language": "json" } } },
+        "url": "{{BASE_URL}}/fridges/join"
       }
     }
   ]

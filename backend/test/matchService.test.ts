@@ -25,6 +25,11 @@ describe("resolveIngredientId", () => {
 });
 
 describe("rankByMissing", () => {
+  const ings = [
+    { id: "egg", name: "Trứng" },
+    { id: "salt", name: "Muối" },
+    { id: "milk", name: "Sữa" },
+  ];
   it("counts known-but-absent as missing even with null qty", () => {
     const rows = [
       { recipeId: "a", ingredientId: "egg", qty_base: 100 },
@@ -32,9 +37,12 @@ describe("rankByMissing", () => {
       { recipeId: "b", ingredientId: "egg", qty_base: 100 },
       { recipeId: "b", ingredientId: "milk", qty_base: 500 },
     ];
-    const got = rankByMissing(rows, [{ ingredientId: "egg", qty_base: 200 }]);
+    const got = rankByMissing(rows, [{ ingredientId: "egg", qty_base: 200 }], ings);
     assert.equal(got[0].recipeId, "a");
     assert.equal(got[0].missing, 1); // salt known but absent
+    assert.equal(got[0].matched, 1);
+    assert.deepEqual(got[0].missingIngredients, [{ ingredientId: "salt", name: "Muối" }]);
+    assert.deepEqual(got[0].matchedIngredients, [{ ingredientId: "egg", name: "Trứng" }]);
     assert.equal(got[1].missing, 1); // milk known but absent (qty compare not reached)
   });
   it("skips null-ingredient rows, qty shortfall counts", () => {
@@ -42,28 +50,79 @@ describe("rankByMissing", () => {
       { recipeId: "a", ingredientId: null, qty_base: null },
       { recipeId: "a", ingredientId: "egg", qty_base: 500 },
     ];
-    const got = rankByMissing(rows, [{ ingredientId: "egg", qty_base: 100 }]);
+    const got = rankByMissing(rows, [{ ingredientId: "egg", qty_base: 100 }], ings);
     assert.equal(got[0].missing, 1);
     assert.equal(got[0].enough, false);
+  });
+  it("excludes recipes with zero fridge overlap", () => {
+    const rows = [
+      { recipeId: "a", ingredientId: "egg", qty_base: null },
+      { recipeId: "far", ingredientId: "salt", qty_base: null },
+    ];
+    const got = rankByMissing(rows, [{ ingredientId: "egg", qty_base: 200 }], ings);
+    assert.deepEqual(got.map((r) => r.recipeId), ["a"]);
   });
 });
 
 describe("matchRecipes", () => {
-  it("resolves raw names then ranks most-overlap first", async () => {
+  it("lists only overlapping recipes, most-overlap first, with missing names", async () => {
     const rows = [
       { recipeId: "vit", ingredientId: "duck", qty_base: null, base_unit: null },
       { recipeId: "vit", ingredientId: "salt", qty_base: null, base_unit: null },
       { recipeId: "trung", ingredientId: "egg", qty_base: null, base_unit: null },
+      { recipeId: "trung-ca", ingredientId: "egg", qty_base: null, base_unit: null },
+      { recipeId: "trung-ca", ingredientId: "fish", qty_base: null, base_unit: null },
     ];
-    const ings = [{ id: "egg", name: "Trứng" }, { id: "fish", name: "Cá" }];
+    const ings = [
+      { id: "egg", name: "Trứng" },
+      { id: "fish", name: "Cá" },
+      { id: "duck", name: "Vịt" },
+      { id: "salt", name: "Muối" },
+    ];
     const got = await matchRecipes(
       [{ name: "Trứng", qty_base: 5 }, { name: "Cá", qty_base: 2 }],
       {},
       async () => rows,
       async () => ings,
     );
-    assert.equal(got[0].recipeId, "trung");
+    assert.deepEqual(got.map((r) => r.recipeId), ["trung-ca", "trung"]); // vit excluded: zero overlap
+    assert.equal(got[0].matched, 2);
     assert.equal(got[0].missing, 0);
-    assert.equal(got[1].missing, 2);
+    assert.ok(!("recipeName" in got[0])); // card lay ten tu fetchRecipeCards, rank khong fetch ten nua
+    assert.deepEqual(got[0].matchedIngredients, [
+      { ingredientId: "egg", name: "Trứng" },
+      { ingredientId: "fish", name: "Cá" },
+    ]);
+    assert.deepEqual(got[0].missingIngredients, []);
+    assert.equal(got[1].matched, 1);
+  });
+  it("slices top N after sort when limit given", async () => {
+    const rows = [
+      { recipeId: "a", ingredientId: "egg", qty_base: null, base_unit: null },
+      { recipeId: "b", ingredientId: "egg", qty_base: null, base_unit: null },
+      { recipeId: "b", ingredientId: "fish", qty_base: null, base_unit: null },
+      { recipeId: "c", ingredientId: "fish", qty_base: null, base_unit: null },
+    ];
+    const ings = [
+      { id: "egg", name: "Trứng" },
+      { id: "fish", name: "Cá" },
+    ];
+    const got = await matchRecipes(
+      [{ name: "Trứng" }, { name: "Cá" }],
+      { limit: 2 },
+      async () => rows,
+      async () => ings,
+    );
+    assert.deepEqual(got.map((r) => r.recipeId), ["b", "a"]);
+  });
+  it("ignores requireAll (removed): returns overlap-ranked like default", async () => {
+    const rows = [{ recipeId: "a", ingredientId: "egg", qty_base: null, base_unit: null }];
+    const got = await matchRecipes(
+      [{ name: "Trứng" }],
+      { requireAll: true } as never,
+      async () => rows,
+      async () => [{ id: "egg", name: "Trứng" }],
+    );
+    assert.deepEqual(got.map((r) => r.recipeId), ["a"]);
   });
 });

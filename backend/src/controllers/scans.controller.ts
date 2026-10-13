@@ -1,11 +1,39 @@
 import type { Request, Response } from "express";
-import { commitScan } from "../services/scans.service.js";
+import { commitScan, createScanWithItems, updateScanItems, updateScanLocations } from "../services/scans.service.js";
+
+function sendErr(res: Response, e: unknown) {
+  const err = e as Error & { status?: number };
+  res.status(err.status ?? 500).json({ error: err.message });
+}
+
+export async function create(req: Request, res: Response) {
+  try {
+    res.status(201).json(await createScanWithItems(String(req.body.fridge_id ?? ""), req.body.items ?? []));
+  } catch (e) {
+    sendErr(res, e);
+  }
+}
+
+export async function editItems(req: Request, res: Response) {
+  try {
+    res.json(await updateScanItems(req.params.id, req.body.items ?? []));
+  } catch (e) {
+    sendErr(res, e);
+  }
+}
+
+export async function locate(req: Request, res: Response) {
+  try {
+    res.json(await updateScanLocations(req.params.id, req.body.items ?? []));
+  } catch (e) {
+    sendErr(res, e);
+  }
+}
 
 export async function commit(req: Request, res: Response) {
   try {
     res.json(await commitScan(req.params.id));
   } catch (e) {
-    const err = e as Error & { status?: number };
-    res.status(err.status ?? 500).json({ error: err.message });
+    sendErr(res, e);
   }
 }
