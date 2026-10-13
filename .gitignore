@@ -39,7 +39,28 @@ google-services.json
 # Android Profiling
 *.hprof
 
-# Backend secrets & build
-backend/.env
-backend/node_modules/
-backend/dist/
+# Backend / OCR secrets & build — giữ .example
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local debug / index
+output.json
+.codegraph/
+
+# IDE / OS
+.vscode/
+API.md
