@@ -11,6 +11,11 @@
 008_rls_hardening.sql USING+WITH CHECK tường minh, TO authenticated, member_leave DELETE
 009_rls_recursion_fix.sql cắt vòng fridges<->members bằng hàm is_fridge_owner() definer
 010_fridge_roster.sql  trigger auto-thêm owner + member thấy hết roster
+011_scan_items_ids.sql nhập tay thay OCR: ingredient_id + purchased_at cho scan_items
+012_foods_location.sql  foods.location fridge/freezer + CHECK + index
+013_catalog_read.sql   GRANT + RLS đọc Ingredients cho authenticated (req 3, màn nhập tay)
+014_like_count.sql     RPC bump_like_count atomic + sàn 0 cho tym/unlike reels
+015_family_invite.sql   backfill + trigger tu sinh invite_code cho join-by-code
 ```
 
 Mỗi file là 1 transaction + có query verify ở cuối. Backup `_bak_*` tạo ở 001/002.
