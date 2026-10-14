@@ -26,6 +26,8 @@ android {
         }
         val apiBaseUrl = localProps.getProperty("api.baseUrl", "http://10.0.2.2:3000/")
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+        buildConfigField("String", "SUPABASE_URL", "\"${localProps.getProperty("supabase.url", "")}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${localProps.getProperty("supabase.anonKey", "")}\"")
     }
 
     buildTypes {
