@@ -30,6 +30,11 @@ class AuthRepository @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val prefs = context.getSharedPreferences("auth", Context.MODE_PRIVATE)
+
+    init {
+        // cold start: nạp token đã lưu vào interceptor, nếu không mọi request đều thiếu header → 401
+        authInterceptor.token = prefs.getString("token", null)
+    }
     private val _state = MutableStateFlow<AuthState>(
         if (getAccessToken() != null) AuthState.Authenticated else AuthState.Unauthenticated
     )
