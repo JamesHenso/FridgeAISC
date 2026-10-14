@@ -87,7 +87,10 @@ private fun ReelVideo(videoId: String?, imageUrl: String?, active: Boolean, modi
         WebView(context).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            settings.databaseEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
+            settings.loadWithOverviewMode = true
+            settings.useWideViewPort = true
             webViewClient = object : WebViewClient() {
                 override fun onReceivedError(
                     view: WebView?,
@@ -98,7 +101,8 @@ private fun ReelVideo(videoId: String?, imageUrl: String?, active: Boolean, modi
                 }
             }
             webChromeClient = android.webkit.WebChromeClient()
-            loadDataWithBaseURL("https://www.youtube.com", embedHtml(videoId), "text/html", "utf-8", null)
+            // ponytail: loadUrl trực tiếp thay vì loadData — IFrame qua loadData hay kẹt cookie/render đen màn
+            loadUrl("https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0")
         }
     }
     DisposableEffect(videoId) { onDispose { webView.destroy() } }
@@ -113,6 +117,7 @@ fun ReelsScreen(
     viewModel: ReelsViewModel = hiltViewModel()
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     Scaffold(modifier = modifier) { innerPadding ->
         when {
             ui.isLoading -> LoadingState(Modifier.padding(innerPadding))
@@ -147,6 +152,18 @@ fun ReelsScreen(
                                     Text(if (reel.isLiked) "Đã thích" else "Thích")
                                 }
                                 Button(onClick = { onNavigateToRecipeDetail(reel.id) }) { Text("Nấu ngay") }
+                            }
+                            if (reel.videoId != null) {
+                                androidx.compose.material3.TextButton(
+                                    onClick = {
+                                        context.startActivity(
+                                            android.content.Intent(
+                                                android.content.Intent.ACTION_VIEW,
+                                                android.net.Uri.parse("https://www.youtube.com/watch?v=${reel.videoId}")
+                                            )
+                                        )
+                                    }
+                                ) { Text("Mở trong YouTube") }
                             }
                         }
                     }
