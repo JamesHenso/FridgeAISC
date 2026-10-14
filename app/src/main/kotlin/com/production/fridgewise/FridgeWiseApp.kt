@@ -23,10 +23,11 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AppViewModel @Inject constructor(
-    authRepository: AuthRepository,
+    private val authRepository: AuthRepository,
     val authInterceptor: AuthInterceptor
 ) : ViewModel() {
     val authState = authRepository.authState
+    fun onUnauthorized() = authRepository.signOut()
 }
 
 @Composable
@@ -40,6 +41,7 @@ fun FridgeWiseApp(modifier: Modifier = Modifier, appViewModel: AppViewModel = hi
 
     LaunchedEffect(Unit) {
         appViewModel.authInterceptor.unauthorizedEvent.collect {
+            appViewModel.onUnauthorized()
             navController.navigate(Route.Login.route) { popUpTo(0) }
         }
     }

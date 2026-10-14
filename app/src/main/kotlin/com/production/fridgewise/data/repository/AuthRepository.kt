@@ -49,6 +49,10 @@ class AuthRepository @Inject constructor(
         _state.value = AuthState.Authenticated
     }
 
+    // GoTrue: client riêng không gắn Bearer (token cũ/fake trong interceptor sẽ làm Supabase từ chối)
+    private val authHttp by lazy {
+        http.newBuilder().apply { interceptors().removeAll { it is AuthInterceptor } }.build()
+    }
     private fun cfg(): Pair<String, String> {
         val url = BuildConfig.SUPABASE_URL.trim()
         val key = BuildConfig.SUPABASE_ANON_KEY.trim()
@@ -65,7 +69,7 @@ class AuthRepository @Inject constructor(
             .header("Content-Type", "application/json")
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
-        http.newCall(req).execute().use { res ->
+        authHttp.newCall(req).execute().use { res ->
             val json = JSONObject(res.body?.string().orEmpty().ifEmpty { "{}" })
             if (!res.isSuccessful) {
                 throw IllegalStateException(json.optString("msg", json.optString("message", json.optString("error_description", "Đăng nhập thất bại (${res.code})"))))
