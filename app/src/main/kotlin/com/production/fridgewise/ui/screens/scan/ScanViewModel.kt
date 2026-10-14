@@ -92,6 +92,16 @@ class ScanViewModel @Inject constructor(private val repo: ScanRepository) : View
         })
     }
 
+    fun goBack() {
+        _ui.value = _ui.value.copy(
+            step = when (_ui.value.step) {
+                ScanStep.ASSIGN -> ScanStep.CONFIRM
+                else -> ScanStep.SCAN
+            },
+            error = null
+        )
+    }
+
     fun commitScan(onDone: () -> Unit) {
         val scanId = _ui.value.scanId ?: return
         if (!allAssigned) {

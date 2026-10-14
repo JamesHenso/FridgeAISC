@@ -18,9 +18,7 @@ import com.production.fridgewise.ui.screens.login.LoginScreen
 import com.production.fridgewise.ui.screens.recipes.RecipeDetailScreen
 import com.production.fridgewise.ui.screens.recipes.RecipeListScreen
 import com.production.fridgewise.ui.screens.reels.ReelsScreen
-import com.production.fridgewise.ui.screens.scan.AssignStorageScreen
-import com.production.fridgewise.ui.screens.scan.ConfirmItemsScreen
-import com.production.fridgewise.ui.screens.scan.ScanScreen
+import com.production.fridgewise.ui.screens.scan.ScanWizardScreen
 import com.production.fridgewise.ui.screens.settings.SettingsScreen
 import com.production.fridgewise.ui.screens.setup.SetupFridgeScreen
 import com.production.fridgewise.ui.screens.storagelist.StorageListScreen
@@ -89,27 +87,9 @@ fun NavGraph(navController: NavHostController, startDestination: String, modifie
             })
         }
         composable(Route.Scan.route) {
-            ScanScreen(
-                onNextStep = { scanId -> navController.navigate(Route.ConfirmItems.create(scanId)) },
+            ScanWizardScreen(
+                onDone = { navController.navigate(Route.Inventory.route) { popUpTo(0) } },
                 onCancel = { navController.popBackStack() }
-            )
-        }
-        composable(
-            Route.ConfirmItems.route,
-            arguments = listOf(navArgument("scanId") { type = NavType.StringType })
-        ) {
-            ConfirmItemsScreen(
-                onNextStep = { scanId -> navController.navigate(Route.AssignStorage.create(scanId)) },
-                onBack = { navController.popBackStack() }
-            )
-        }
-        composable(
-            Route.AssignStorage.route,
-            arguments = listOf(navArgument("scanId") { type = NavType.StringType })
-        ) {
-            AssignStorageScreen(
-                onComplete = { navController.navigate(Route.Inventory.route) { popUpTo(0) } },
-                onBack = { navController.popBackStack() }
             )
         }
         composable(Route.Family.route) { FamilyScreen() }

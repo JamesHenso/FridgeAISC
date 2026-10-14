@@ -23,8 +23,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -32,21 +33,38 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.production.fridgewise.ui.theme.MyAppTheme
 
-@OptIn(ExperimentalMaterial3Api::class)
+// ponytail: wizard 1 destination + 1 ViewModel — mỗi step là destination riêng thì
+// hiltViewModel() tạo instance mới và Confirm luôn đọc state rỗng
 @Composable
-fun ScanScreen(
-    onNextStep: (String) -> Unit,
+fun ScanWizardScreen(
+    onDone: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ScanViewModel = hiltViewModel()
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
-    androidx.compose.runtime.LaunchedEffect(ui.scanId, ui.step) {
-        if (ui.step == ScanStep.CONFIRM) ui.scanId?.let(onNextStep)
+    when (ui.step) {
+        ScanStep.SCAN -> ScanScreen(onCancel = onCancel, modifier = modifier, viewModel = viewModel)
+        ScanStep.CONFIRM -> ConfirmItemsScreen(
+            onBack = viewModel::goBack, modifier = modifier, viewModel = viewModel
+        )
+        ScanStep.ASSIGN -> AssignStorageScreen(
+            onComplete = onDone, onBack = viewModel::goBack, modifier = modifier, viewModel = viewModel
+        )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ScanScreen(
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: ScanViewModel = hiltViewModel()
+) {
+    val ui by viewModel.ui.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
-    var photoUri by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<android.net.Uri?>(null) }
-    var previewUri by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<android.net.Uri?>(null) }
+    var photoUri by remember { androidx.compose.runtime.mutableStateOf<android.net.Uri?>(null) }
+    var previewUri by remember { androidx.compose.runtime.mutableStateOf<android.net.Uri?>(null) }
 
     fun newPhotoUri(): android.net.Uri {
         val dir = java.io.File(context.cacheDir, "scan").apply { mkdirs() }
@@ -122,15 +140,11 @@ fun ScanScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConfirmItemsScreen(
-    onNextStep: (String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ScanViewModel = hiltViewModel()
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
-    androidx.compose.runtime.LaunchedEffect(ui.step) {
-        if (ui.step == ScanStep.ASSIGN) ui.scanId?.let(onNextStep)
-    }
     Scaffold(
         modifier = modifier,
         topBar = {
