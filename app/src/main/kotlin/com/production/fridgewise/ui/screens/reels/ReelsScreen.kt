@@ -1,32 +1,70 @@
 package com.production.fridgewise.ui.screens.reels
 
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.VerticalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import com.production.fridgewise.ui.components.EmptyState
 import com.production.fridgewise.ui.components.ErrorState
 import com.production.fridgewise.ui.components.LoadingState
 import com.production.fridgewise.ui.theme.MyAppTheme
+
+// ponytail: video_id là YouTube ID → WebView IFrame embed, khỏi thêm player dependency
+private fun embedHtml(videoId: String) = """
+<html><body style="margin:0;background:black">
+<iframe width="100%" height="100%" src="https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0"
+frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+</body></html>
+""".trimIndent()
+
+@Composable
+private fun ReelVideo(videoId: String?, imageUrl: String?, active: Boolean, modifier: Modifier = Modifier) {
+    if (!active || videoId.isNullOrEmpty()) {
+        AsyncImage(
+            model = imageUrl, contentDescription = null,
+            contentScale = ContentScale.Crop, modifier = modifier.fillMaxSize()
+        )
+        return
+    }
+    val context = LocalContext.current
+    val webView = remember(videoId) {
+        WebView(context).apply {
+            settings.javaScriptEnabled = true
+            settings.mediaPlaybackRequiresUserGesture = false
+            webViewClient = WebViewClient()
+            loadDataWithBaseURL("https://www.youtube.com", embedHtml(videoId), "text/html", "utf-8", null)
+        }
+    }
+    DisposableEffect(videoId) { onDispose { webView.destroy() } }
+    AndroidView(factory = { webView }, modifier = modifier.fillMaxSize())
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,19 +74,26 @@ fun ReelsScreen(
     viewModel: ReelsViewModel = hiltViewModel()
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
-    Scaffold(modifier = modifier, topBar = { TopAppBar(title = { Text("Reels") }) }) { innerPadding ->
+    Scaffold(modifier = modifier) { innerPadding ->
         when {
             ui.isLoading -> LoadingState(Modifier.padding(innerPadding))
             ui.error != null -> ErrorState(ui.error ?: "", viewModel::load, Modifier.padding(innerPadding))
             ui.reels.isEmpty() -> EmptyState("Chưa có video", Modifier.padding(innerPadding))
-            else -> LazyColumn(
-                Modifier.fillMaxSize().padding(innerPadding).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(ui.reels, key = { it.id }) { reel ->
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(reel.name, style = MaterialTheme.typography.titleMedium)
+            else -> {
+                val pager = rememberPagerState(pageCount = { ui.reels.size })
+                VerticalPager(
+                    state = pager,
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                    beyondViewportPageCount = 1
+                ) { page ->
+                    val reel = ui.reels[page]
+                    Box(Modifier.fillMaxSize()) {
+                        ReelVideo(reel.videoId, reel.imageUrl, active = page == pager.currentPage)
+                        Column(
+                            Modifier.fillMaxWidth().align(Alignment.BottomStart).padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(reel.name, style = MaterialTheme.typography.titleLarge)
                             Text(
                                 listOfNotNull(
                                     reel.servings?.let { "Khẩu phần $it" },
@@ -56,7 +101,7 @@ fun ReelsScreen(
                                     reel.difficulty,
                                     reel.likeCount?.let { "♥ $it" }
                                 ).joinToString(" · "),
-                                style = MaterialTheme.typography.bodySmall
+                                style = MaterialTheme.typography.bodyMedium
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(onClick = { viewModel.likeReel(reel.id) }) {

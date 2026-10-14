@@ -52,7 +52,22 @@ class RecipeListViewModel @Inject constructor(
         }
     }
 
-    fun onQueryChange(q: String) { _ui.value = _ui.value.copy(searchQuery = q) }
+    fun onQueryChange(q: String) { _ui.value = _ui.value.copy(searchQuery = q); debounceSearch(q) }
+    fun searchNow() {
+        searchJob?.cancel()
+        val q = _ui.value.searchQuery
+        if (q.isBlank()) loadMatched() else search()
+    }
+
+    private var searchJob: kotlinx.coroutines.Job? = null
+
+    private fun debounceSearch(q: String) {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(400)
+            if (q.isBlank()) loadMatched() else search()
+        }
+    }
     fun onCategoryChange(c: String?) { _ui.value = _ui.value.copy(selectedCategory = c); search() }
     fun onMethodChange(m: String?) { _ui.value = _ui.value.copy(selectedMethod = m); search() }
 }

@@ -53,7 +53,16 @@ fun RecipeListScreen(
                 onValueChange = { viewModel.onQueryChange(it) },
                 placeholder = { Text("Tìm món…") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Search
+                ),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                    onSearch = { viewModel.searchNow() }
+                ),
+                trailingIcon = {
+                    androidx.compose.material3.TextButton(onClick = viewModel::searchNow) { Text("Tìm") }
+                }
             )
             when {
                 ui.isLoading -> LoadingState()

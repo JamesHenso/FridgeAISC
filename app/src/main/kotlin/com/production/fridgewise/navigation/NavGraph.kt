@@ -54,14 +54,14 @@ fun NavGraph(navController: NavHostController, startDestination: String, modifie
             Route.StorageList.route,
             arguments = listOf(
                 navArgument("location") { type = NavType.StringType },
-                navArgument("fridgeId") { type = NavType.StringType; nullable = true }
+                navArgument("fridgeId") { type = NavType.StringType; nullable = true; defaultValue = null }
             )
         ) {
             StorageListScreen(onBack = { navController.popBackStack() })
         }
         composable(
             Route.RecipeList.route,
-            arguments = listOf(navArgument("fridgeId") { type = NavType.StringType; nullable = true })
+            arguments = listOf(navArgument("fridgeId") { type = NavType.StringType; nullable = true; defaultValue = null })
         ) { entry ->
             val fid = entry.arguments?.getString("fridgeId")
             RecipeListScreen(
@@ -73,7 +73,7 @@ fun NavGraph(navController: NavHostController, startDestination: String, modifie
             Route.RecipeDetail.route,
             arguments = listOf(
                 navArgument("recipeId") { type = NavType.StringType },
-                navArgument("fridgeId") { type = NavType.StringType; nullable = true }
+                navArgument("fridgeId") { type = NavType.StringType; nullable = true; defaultValue = null }
             )
         ) {
             RecipeDetailScreen(onBack = { navController.popBackStack() })

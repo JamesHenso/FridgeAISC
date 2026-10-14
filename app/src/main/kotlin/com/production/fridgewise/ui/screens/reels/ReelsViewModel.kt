@@ -4,8 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.production.fridgewise.data.repository.FavoriteRepository
 import com.production.fridgewise.data.repository.RecipeRepository
-import com.production.fridgewise.ui.components.RecipeCardUi
-import com.production.fridgewise.ui.components.toUi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +13,8 @@ import javax.inject.Inject
 
 data class ReelUi(
     val id: String, val name: String, val servings: Int?, val time: Int?,
-    val difficulty: String?, val videoUrl: String?, val likeCount: Int?, val isLiked: Boolean = false
+    val difficulty: String?, val videoId: String?, val imageUrl: String?,
+    val likeCount: Int?, val isLiked: Boolean = false
 )
 
 data class ReelsUiState(val reels: List<ReelUi> = emptyList(), val isLoading: Boolean = true, val error: String? = null)
@@ -27,7 +26,7 @@ class ReelsViewModel @Inject constructor(
 ) : ViewModel() {
     private val _ui = MutableStateFlow(ReelsUiState())
     val ui: StateFlow<ReelsUiState> = _ui.asStateFlow()
-    private val cards = mutableListOf<RecipeCardUi>()
+    private val cards = mutableListOf<com.production.fridgewise.data.remote.dto.RecipeCardResponse>()
 
     init { load() }
 
@@ -35,9 +34,9 @@ class ReelsViewModel @Inject constructor(
         viewModelScope.launch {
             _ui.value = _ui.value.copy(isLoading = true, error = null)
             recipeRepo.getReels().onSuccess { list ->
-                cards.clear(); cards.addAll(list.map { it.toUi() })
+                cards.clear(); cards.addAll(list)
                 _ui.value = ReelsUiState(reels = cards.map {
-                    ReelUi(it.id, it.name, it.servings, it.time, it.difficulty, null, it.likeCount)
+                    ReelUi(it.id, it.name, it.servings, it.time, it.difficulty, it.video_id, it.imageUrl, it.like_count)
                 }, isLoading = false)
             }.onFailure { _ui.value = _ui.value.copy(isLoading = false, error = it.message) }
         }
