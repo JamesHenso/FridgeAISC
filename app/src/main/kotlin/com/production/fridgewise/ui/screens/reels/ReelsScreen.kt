@@ -34,38 +34,50 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
 import com.production.fridgewise.ui.components.EmptyState
 import com.production.fridgewise.ui.components.ErrorState
 import com.production.fridgewise.ui.components.LoadingState
 import com.production.fridgewise.ui.theme.MyAppTheme
 
-// ponytail: video_id là YouTube ID → WebView IFrame embed, khỏi thêm player dependency
-private fun embedHtml(videoId: String) = """
-<html><body style="margin:0;background:black">
-<iframe width="100%" height="100%" src="https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0"
-frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-</body></html>
-""".trimIndent()
-
+/**
+ * Plays a YouTube video using android-youtube-player library.
+ * Shows thumbnail with play button when inactive; loads player when active and user taps play.
+ */
 @Composable
-private fun ReelVideo(videoId: String?, imageUrl: String?, active: Boolean, modifier: Modifier = Modifier) {
-    var failed by androidx.compose.runtime.remember(videoId) { androidx.compose.runtime.mutableStateOf(false) }
-    var started by androidx.compose.runtime.remember(videoId) { androidx.compose.runtime.mutableStateOf(false) }
-    // ponytail: autoplay kèm tiếng bị WebView chặn → thumbnail + play, tap mới nạp player; rời trang thì hủy
-    if (!active || videoId.isNullOrEmpty() || failed || !started) {
+private fun ReelVideo(
+    videoId: String?,
+    imageUrl: String?,
+    active: Boolean,
+    modifier: Modifier = Modifier
+) {
+    var started by androidx.compose.runtime.remember(videoId) {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+
+    // Show thumbnail + play button when not started or no videoId
+    if (!active || videoId.isNullOrEmpty() || !started) {
         Box(modifier.fillMaxSize()) {
             AsyncImage(
                 model = imageUrl ?: "https://i.ytimg.com/vi/$videoId/hqdefault.jpg",
                 contentDescription = null,
-                contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
             )
-            if (active && !videoId.isNullOrEmpty() && !failed) {
+            if (active && !videoId.isNullOrEmpty()) {
                 androidx.compose.material3.IconButton(
                     onClick = { started = true },
-                    modifier = Modifier.align(Alignment.Center).size(88.dp)
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(88.dp)
                 ) {
                     androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
-                        drawCircle(color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f))
+                        drawCircle(
+                            color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f)
+                        )
                         val w = size.width
                         drawPath(
                             path = androidx.compose.ui.graphics.Path().apply {
@@ -82,31 +94,30 @@ private fun ReelVideo(videoId: String?, imageUrl: String?, active: Boolean, modi
         }
         return
     }
-    val context = LocalContext.current
-    val webView = remember(videoId) {
-        WebView(context).apply {
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.databaseEnabled = true
-            settings.mediaPlaybackRequiresUserGesture = false
-            settings.loadWithOverviewMode = true
-            settings.useWideViewPort = true
-            webViewClient = object : WebViewClient() {
-                override fun onReceivedError(
-                    view: WebView?,
-                    request: android.webkit.WebResourceRequest?,
-                    error: android.webkit.WebResourceError?
-                ) {
-                    if (request?.isForMainFrame == true) failed = true
-                }
+
+    // Active + started → load YouTubePlayerView
+    val safeVideoId = videoId // smart-cast assured non-null from guard above
+    AndroidView(
+        factory = { ctx ->
+            YouTubePlayerView(ctx).apply {
+                enableAutomaticInitialization = false
+                val iFrameOptions = IFramePlayerOptions.Builder(ctx)
+                    .controls(1)
+                    .rel(0)
+                    .build()
+                initialize(
+                    object : AbstractYouTubePlayerListener() {
+                        override fun onReady(youTubePlayer: YouTubePlayer) {
+                            youTubePlayer.loadVideo(safeVideoId, 0f)
+                        }
+                    },
+                    iFrameOptions
+                )
             }
-            webChromeClient = android.webkit.WebChromeClient()
-            // ponytail: loadUrl trực tiếp thay vì loadData — IFrame qua loadData hay kẹt cookie/render đen màn
-            loadUrl("https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0")
-        }
-    }
-    DisposableEffect(videoId) { onDispose { webView.destroy() } }
-    AndroidView(factory = { webView }, modifier = modifier.fillMaxSize())
+        },
+        modifier = modifier.fillMaxSize(),
+        onRelease = { view -> view.release() }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -121,23 +132,42 @@ fun ReelsScreen(
     Scaffold(modifier = modifier) { innerPadding ->
         when {
             ui.isLoading -> LoadingState(Modifier.padding(innerPadding))
-            ui.error != null -> ErrorState(ui.error ?: "", viewModel::load, Modifier.padding(innerPadding))
-            ui.reels.isEmpty() -> EmptyState("Chưa có video", Modifier.padding(innerPadding))
+            ui.error != null -> ErrorState(
+                ui.error ?: "",
+                viewModel::load,
+                Modifier.padding(innerPadding)
+            )
+            ui.reels.isEmpty() -> EmptyState(
+                "Chưa có video",
+                Modifier.padding(innerPadding)
+            )
             else -> {
                 val pager = rememberPagerState(pageCount = { ui.reels.size })
                 VerticalPager(
                     state = pager,
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
                     beyondViewportPageCount = 1
                 ) { page ->
                     val reel = ui.reels[page]
                     Box(Modifier.fillMaxSize()) {
-                        ReelVideo(reel.videoId, reel.imageUrl, active = page == pager.currentPage)
+                        ReelVideo(
+                            reel.videoId,
+                            reel.imageUrl,
+                            active = page == pager.currentPage
+                        )
                         Column(
-                            Modifier.fillMaxWidth().align(Alignment.BottomStart).padding(16.dp),
+                            Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.BottomStart)
+                                .padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Text(reel.name, style = MaterialTheme.typography.titleLarge)
+                            Text(
+                                reel.name,
+                                style = MaterialTheme.typography.titleLarge
+                            )
                             Text(
                                 listOfNotNull(
                                     reel.servings?.let { "Khẩu phần $it" },
@@ -148,10 +178,18 @@ fun ReelsScreen(
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(onClick = { viewModel.likeReel(reel.id) }) {
+                                OutlinedButton(
+                                    onClick = { viewModel.likeReel(reel.id) }
+                                ) {
                                     Text(if (reel.isLiked) "Đã thích" else "Thích")
                                 }
-                                Button(onClick = { onNavigateToRecipeDetail(reel.id) }) { Text("Nấu ngay") }
+                                Button(
+                                    onClick = {
+                                        onNavigateToRecipeDetail(reel.id)
+                                    }
+                                ) {
+                                    Text("Nấu ngay")
+                                }
                             }
                             if (reel.videoId != null) {
                                 androidx.compose.material3.TextButton(
@@ -159,11 +197,15 @@ fun ReelsScreen(
                                         context.startActivity(
                                             android.content.Intent(
                                                 android.content.Intent.ACTION_VIEW,
-                                                android.net.Uri.parse("https://www.youtube.com/watch?v=${reel.videoId}")
+                                                android.net.Uri.parse(
+                                                    "https://www.youtube.com/watch?v=${reel.videoId}"
+                                                )
                                             )
                                         )
                                     }
-                                ) { Text("Mở trong YouTube") }
+                                ) {
+                                    Text("Mở trong YouTube")
+                                }
                             }
                         }
                     }
