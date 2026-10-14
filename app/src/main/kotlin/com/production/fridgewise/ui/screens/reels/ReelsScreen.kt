@@ -46,7 +46,8 @@ frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
 
 @Composable
 private fun ReelVideo(videoId: String?, imageUrl: String?, active: Boolean, modifier: Modifier = Modifier) {
-    if (!active || videoId.isNullOrEmpty()) {
+    var failed by androidx.compose.runtime.remember(videoId) { androidx.compose.runtime.mutableStateOf(false) }
+    if (!active || videoId.isNullOrEmpty() || failed) {
         AsyncImage(
             model = imageUrl, contentDescription = null,
             contentScale = ContentScale.Crop, modifier = modifier.fillMaxSize()
@@ -57,8 +58,18 @@ private fun ReelVideo(videoId: String?, imageUrl: String?, active: Boolean, modi
     val webView = remember(videoId) {
         WebView(context).apply {
             settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
-            webViewClient = WebViewClient()
+            webViewClient = object : WebViewClient() {
+                override fun onReceivedError(
+                    view: WebView?,
+                    request: android.webkit.WebResourceRequest?,
+                    error: android.webkit.WebResourceError?
+                ) {
+                    if (request?.isForMainFrame == true) failed = true
+                }
+            }
+            webChromeClient = android.webkit.WebChromeClient()
             loadDataWithBaseURL("https://www.youtube.com", embedHtml(videoId), "text/html", "utf-8", null)
         }
     }
