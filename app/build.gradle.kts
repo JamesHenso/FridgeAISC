@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
@@ -18,7 +20,12 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:3000/\"")
+        // ponytail: IP LAN qua local.properties (api.baseUrl), không commit IP cá nhân; siết cleartext trước release
+        val localProps = Properties().also { p ->
+            rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use(p::load)
+        }
+        val apiBaseUrl = localProps.getProperty("api.baseUrl", "http://10.0.2.2:3000/")
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
     }
 
     buildTypes {
