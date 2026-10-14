@@ -41,6 +41,16 @@ class ScanViewModel @Inject constructor(private val repo: ScanRepository) : View
 
     val allAssigned: Boolean get() = _ui.value.items.isNotEmpty() && _ui.value.items.all { it.location != null }
 
+    // Ảnh từ camera/gallery → OCR (:8000) → POST /scans → CONFIRM
+    fun scanPhoto(image: ByteArray) {
+        viewModelScope.launch {
+            _ui.value = _ui.value.copy(isLoading = true, error = null)
+            repo.scanPhoto(image).onSuccess { (scanId, items) ->
+                _ui.value = ScanUiState(scanId = scanId, items = items, step = ScanStep.CONFIRM)
+            }.onFailure { _ui.value = _ui.value.copy(isLoading = false, error = it.message) }
+        }
+    }
+
     fun createScanFromOcr(fridgeId: String, items: List<ScannedItemUi>) {
         viewModelScope.launch {
             _ui.value = _ui.value.copy(isLoading = true, error = null)

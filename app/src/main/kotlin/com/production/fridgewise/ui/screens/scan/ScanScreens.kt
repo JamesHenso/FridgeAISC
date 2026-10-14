@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,6 +22,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -41,6 +44,32 @@ fun ScanScreen(
     androidx.compose.runtime.LaunchedEffect(ui.scanId, ui.step) {
         if (ui.step == ScanStep.CONFIRM) ui.scanId?.let(onNextStep)
     }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var photoUri by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<android.net.Uri?>(null) }
+    var previewUri by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<android.net.Uri?>(null) }
+
+    fun newPhotoUri(): android.net.Uri {
+        val dir = java.io.File(context.cacheDir, "scan").apply { mkdirs() }
+        val file = java.io.File(dir, "receipt_${System.currentTimeMillis()}.jpg")
+        return androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    }
+    fun send(uri: android.net.Uri) {
+        previewUri = uri
+        context.contentResolver.openInputStream(uri)?.use { viewModel.scanPhoto(it.readBytes()) }
+    }
+
+    val cameraLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.TakePicture()
+    ) { ok -> if (ok) photoUri?.let(::send) }
+    val galleryLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
+    ) { uri -> uri?.let(::send) }
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) cameraLauncher.launch(newPhotoUri().also { photoUri = it })
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -51,15 +80,41 @@ fun ScanScreen(
         }
     ) { innerPadding ->
         Column(Modifier.fillMaxSize().padding(innerPadding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Chụp hoặc chọn ảnh hóa đơn để nhận diện (OCR stub — nhập tay để unblock).",
-                style = MaterialTheme.typography.bodyMedium)
-            Button(
-                onClick = {
-                    // ponytail: OCR thật (CameraX + ocr-model) để sau; stub tạo scan rỗng để đi tiếp wizard
-                    viewModel.createScanFromOcr("demo-fridge", emptyList())
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Bắt đầu xác nhận") }
+            if (previewUri != null) {
+                coil3.compose.AsyncImage(
+                    model = previewUri,
+                    contentDescription = "hóa đơn",
+                    modifier = Modifier.fillMaxWidth().height(220.dp)
+                )
+            }
+            if (ui.isLoading) {
+                com.production.fridgewise.ui.components.LoadingState()
+            } else {
+                Button(
+                    onClick = {
+                        photoUri = newPhotoUri()
+                        when {
+                            androidx.core.content.ContextCompat.checkSelfPermission(
+                                context, android.Manifest.permission.CAMERA
+                            ) == android.content.pm.PackageManager.PERMISSION_GRANTED ->
+                                cameraLauncher.launch(photoUri!!)
+                            else -> permissionLauncher.launch(android.Manifest.permission.CAMERA)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Chụp ảnh") }
+                OutlinedButton(
+                    onClick = {
+                        galleryLauncher.launch(
+                            androidx.activity.result.PickVisualMediaRequest(
+                                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                            )
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Chọn ảnh") }
+            }
+            if (ui.error != null) Text(ui.error ?: "", style = MaterialTheme.typography.bodySmall)
         }
     }
 }

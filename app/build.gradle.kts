@@ -28,6 +28,7 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         buildConfigField("String", "SUPABASE_URL", "\"${localProps.getProperty("supabase.url", "")}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${localProps.getProperty("supabase.anonKey", "")}\"")
+        buildConfigField("String", "OCR_BASE_URL", "\"${localProps.getProperty("ocr.baseUrl", "http://10.0.2.2:8000/")}\"")
     }
 
     buildTypes {
