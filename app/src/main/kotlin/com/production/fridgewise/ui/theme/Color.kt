@@ -2,23 +2,19 @@ package com.production.fridgewise.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// FridgeWise palette: trắng / xám / đen / xanh lá nhạt
-val LeafGreen = Color(0xFF4E9B51)
-val LeafGreenPale = Color(0xFFDCEBD7)
-val LeafGreenDark = Color(0xFFA8D5A2)
+// FridgeWise palette: trắng / xám / xanh dương, chữ đen (theo ảnh mẫu, không dark theme)
+val SkyBlue = Color(0xFF6BBDE8)
+val SkyBluePale = Color(0xFFDDEEFA)
+val SkyBlueDeep = Color(0xFF2F7FAE)
 
-val InkBlack = Color(0xFF191C1A)
+val InkBlack = Color(0xFF1A1D21)
 val GrayText = Color(0xFF5F6368)
 
 val PaperWhite = Color(0xFFFFFFFF)
-val MistGray = Color(0xFFF3F5F4)
-val ChipGray = Color(0xFFE9ECEB)
-
-val DarkBg = Color(0xFF121413)
-val DarkSurface = Color(0xFF1E2220)
-val DarkChip = Color(0xFF2A2F2C)
+val MistBlueGray = Color(0xFFF0F4F7)
+val ChipGray = Color(0xFFE7EBEE)
 
 val ExpiryRed = Color(0xFFD93025)
 val ExpiryRedBg = Color(0xFFFDECEA)
 val SoonYellow = Color(0xFF7A5B00)
-val SoonYellowBg = Color(0xFFF7F0C9)
+val SoonYellowBg = Color(0xFFFBF3D5)
