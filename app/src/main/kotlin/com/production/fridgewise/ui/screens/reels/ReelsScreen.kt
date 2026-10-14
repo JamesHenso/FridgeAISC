@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -48,11 +50,36 @@ frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
 @Composable
 private fun ReelVideo(videoId: String?, imageUrl: String?, active: Boolean, modifier: Modifier = Modifier) {
     var failed by androidx.compose.runtime.remember(videoId) { androidx.compose.runtime.mutableStateOf(false) }
-    if (!active || videoId.isNullOrEmpty() || failed) {
-        AsyncImage(
-            model = imageUrl, contentDescription = null,
-            contentScale = ContentScale.Crop, modifier = modifier.fillMaxSize()
-        )
+    var started by androidx.compose.runtime.remember(videoId) { androidx.compose.runtime.mutableStateOf(false) }
+    // ponytail: autoplay kèm tiếng bị WebView chặn → thumbnail + play, tap mới nạp player; rời trang thì hủy
+    if (!active || videoId.isNullOrEmpty() || failed || !started) {
+        Box(modifier.fillMaxSize()) {
+            AsyncImage(
+                model = imageUrl ?: "https://i.ytimg.com/vi/$videoId/hqdefault.jpg",
+                contentDescription = null,
+                contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()
+            )
+            if (active && !videoId.isNullOrEmpty() && !failed) {
+                androidx.compose.material3.IconButton(
+                    onClick = { started = true },
+                    modifier = Modifier.align(Alignment.Center).size(88.dp)
+                ) {
+                    androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                        drawCircle(color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f))
+                        val w = size.width
+                        drawPath(
+                            path = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(w * 0.38f, w * 0.28f)
+                                lineTo(w * 0.70f, w * 0.50f)
+                                lineTo(w * 0.38f, w * 0.72f)
+                                close()
+                            },
+                            color = androidx.compose.ui.graphics.Color.White
+                        )
+                    }
+                }
+            }
+        }
         return
     }
     val context = LocalContext.current
