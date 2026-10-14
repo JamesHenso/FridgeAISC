@@ -21,8 +21,13 @@ data class InventoryUiState(
     val freezerFoods: List<FoodItemUi> = emptyList(),
     val fridgeFoods: List<FoodItemUi> = emptyList(),
     val isLoading: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
+    val tab: HomeTab = HomeTab.HAVE,
+    val storage: String? = null,
+    val sortAsc: Boolean = true
 )
+
+enum class HomeTab { HAVE, NEED }
 
 private fun statusOf(expiry: String?, today: String): ExpiryStatus = when {
     expiry == null -> ExpiryStatus.NORMAL
@@ -57,14 +62,19 @@ class InventoryViewModel @Inject constructor(private val repo: FridgeRepository)
             }
             fun map(list: List<com.production.fridgewise.data.remote.dto.FoodItemResponse>) =
                 list.map {
-                    FoodItemUi(it.id, it.name, it.expiry_date, statusOf(it.expiry_date, today), it.qty_display, it.unit_display)
+                    FoodItemUi(it.id, it.name, it.expiry_date, statusOf(it.expiry_date, today), it.qty_display, it.unit_display, it.location)
                 }
             _ui.value = InventoryUiState(
                 fridgeId = fridge.id, fridgeName = fridge.name, stats = stats,
                 freezerFoods = map(foods.filter { it.location == "freezer" }),
                 fridgeFoods = map(foods.filter { it.location != "freezer" }),
-                isLoading = false
+                isLoading = false,
+                tab = _ui.value.tab, storage = _ui.value.storage, sortAsc = _ui.value.sortAsc
             )
         }
     }
+
+    fun setTab(tab: HomeTab) { _ui.value = _ui.value.copy(tab = tab) }
+    fun setStorage(storage: String?) { _ui.value = _ui.value.copy(storage = storage) }
+    fun toggleSort() { _ui.value = _ui.value.copy(sortAsc = !_ui.value.sortAsc) }
 }

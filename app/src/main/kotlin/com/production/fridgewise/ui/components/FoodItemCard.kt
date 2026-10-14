@@ -21,7 +21,8 @@ data class FoodItemUi(
     val expiryDate: String?,
     val expiryStatus: ExpiryStatus,
     val qtyDisplay: Double?,
-    val unitDisplay: String?
+    val unitDisplay: String?,
+    val location: String? = null
 )
 
 @Composable
