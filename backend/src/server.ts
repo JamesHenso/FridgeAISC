@@ -18,5 +18,5 @@ app.use("/fridges", fridgesRoutes);
 app.use("/favorites", favoritesRoutes);
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  app.listen(Number(process.env.PORT ?? 3000));
+  app.listen(Number(process.env.PORT ?? 3000), "0.0.0.0");
 }
