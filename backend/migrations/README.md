@@ -16,6 +16,7 @@
 013_catalog_read.sql   GRANT + RLS đọc Ingredients cho authenticated (req 3, màn nhập tay)
 014_like_count.sql     RPC bump_like_count atomic + sàn 0 cho tym/unlike reels
 015_family_invite.sql   backfill + trigger tu sinh invite_code cho join-by-code
+016_ocr_product_receipt.sql lưu giá, tên OCR gốc và nguồn quét trên bản nháp/lô thực phẩm
 ```
 
 Mỗi file là 1 transaction + có query verify ở cuối. Backup `_bak_*` tạo ở 001/002.

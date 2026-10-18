@@ -16,16 +16,25 @@ import kotlinx.coroutines.withContext
 class RecipesApiException(val statusCode: Int, message: String) : IOException(message)
 
 class RecipesRepository(private val baseUrl: String = BuildConfig.API_BASE_URL) {
-    suspend fun recipes(token: String, fridgeId: String?, query: String): List<Recipe> {
+    suspend fun recipes(token: String, fridgeId: String?, query: String, method: String? = null,
+        focusIngredientId: String? = null): List<Recipe> {
+        val extraQuery = buildList {
+            method?.takeIf { it.isNotBlank() }?.let { add("method=${encode(it)}") }
+            focusIngredientId?.takeIf { it.isNotBlank() }?.let { add("ingredient_id=${encode(it)}") }
+        }.joinToString("&").let { if (it.isEmpty()) "" else "&$it" }
         val path = if (query.isBlank() && fridgeId != null) {
-            "recipes/match?fridge_id=${encode(fridgeId)}&limit=50"
-        } else "recipes/search?name=${encode(query.trim())}&limit=50"
+            "recipes/match?fridge_id=${encode(fridgeId)}&limit=5$extraQuery"
+        } else "recipes/search?name=${encode(query.trim())}&limit=50$extraQuery"
         return request(token, path).asJsonArray.map {
             val row = it.asJsonObject
             Recipe(row.get("id").asString, row.get("name").asString, row.string("imageUrl"),
                 row.string("servings")?.toIntOrNull(), row.string("time")?.toIntOrNull(), row.string("difficulty"))
         }
     }
+
+    suspend fun cookingMethods(token: String): List<String> = request(token, "recipes/methods")
+        .asJsonArray.mapNotNull { it.takeUnless { value -> value.isJsonNull }?.asString?.trim()?.takeIf(String::isNotEmpty) }
+        .distinct()
 
     suspend fun detail(token: String, recipeId: String, fridgeId: String?): RecipeDetail {
         val suffix = fridgeId?.let { "?fridge_id=${encode(it)}" }.orEmpty()

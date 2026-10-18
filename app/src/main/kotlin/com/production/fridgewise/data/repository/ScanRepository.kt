@@ -4,6 +4,9 @@ import com.google.gson.*
 import com.production.fridgewise.BuildConfig
 import com.production.fridgewise.domain.model.ReceiptDraft
 import com.production.fridgewise.domain.model.ReceiptItem
+import com.production.fridgewise.domain.model.OcrScanResult
+import com.production.fridgewise.domain.model.ScanMode
+import com.production.fridgewise.domain.model.IngredientCandidate
 import java.io.InputStream
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -19,11 +22,11 @@ class ScanRepository(
     private val backendUrl: String = BuildConfig.API_BASE_URL,
     private val ocrUrl: String = BuildConfig.OCR_BASE_URL
 ) {
-    suspend fun recognize(mimeType: String, openImage: () -> InputStream): List<ReceiptItem> = withContext(Dispatchers.IO) {
+    suspend fun recognize(mode: ScanMode, mimeType: String, openImage: () -> InputStream): OcrScanResult = withContext(Dispatchers.IO) {
         require(mimeType in setOf("image/jpeg", "image/png")) { "Vui lòng chọn ảnh JPG hoặc PNG." }
         require(ocrUrl.isNotBlank()) { "Thiếu ocr.baseUrl trong local.properties." }
         val boundary = "FridgeWise-${UUID.randomUUID()}"
-        val connection = connect(ocrUrl, "api/receipts/scan", "POST")
+        val connection = connect(ocrUrl, if (mode == ScanMode.RECEIPT) "api/receipts/scan" else "api/products/scan", "POST")
         try {
             connection.readTimeout = 120_000
             connection.doOutput = true
@@ -36,26 +39,46 @@ class ScanRepository(
                 openImage().use { it.copyTo(output) }
                 output.write("\r\n--$boundary--\r\n".toByteArray())
             }
-            val result = response(connection).asJsonObject.getAsJsonArray("items")
+            val root = response(connection).asJsonObject
+            val result = root.getAsJsonArray("items")
                 ?: throw IOException("OCR trả về dữ liệu không hợp lệ.")
             currentCoroutineContext().ensureActive()
-            result.map {
+            val items = result.map {
                 val row = it.asJsonObject
                 val name = row.string("name").orEmpty()
-                val ingredient = row.string("ingredient_id").orEmpty()
-                require(name.isNotBlank() && ingredient.isNotBlank()) { "OCR chưa nhận diện được nguyên liệu. Vui lòng chụp lại hóa đơn." }
+                require(name.isNotBlank()) { "OCR chưa nhận diện được tên sản phẩm." }
                 val quantity = row.string("qty_display")?.replace(',', '.')?.toDoubleOrNull()?.takeIf { n -> n.isFinite() && n >= 0 }
-                ReceiptItem(name, ingredient, quantity,
-                    row.string("unit_display"), row.string("purchased_at"), row.string("expiry_date"))
+                ReceiptItem(name, row.string("ingredient_id"), quantity,
+                    row.string("unit_display"), row.string("purchased_at"), row.string("expiry_date"),
+                    rawName = row.string("raw_name"), unitPriceVnd = row.long("unit_price_vnd"),
+                    priceVnd = row.long("price_vnd"), sourceType = row.string("source_type"),
+                    matchStatus = row.string("match_status"),
+                    candidates = row.getAsJsonArray("candidates")?.mapNotNull { candidate ->
+                        val value = candidate.asJsonObject
+                        val id = value.string("ingredient_id")
+                        val candidateName = value.string("name")
+                        if (id != null && candidateName != null) IngredientCandidate(candidateName, id) else null
+                    } ?: emptyList())
             }
+            OcrScanResult(items, root.getAsJsonArray("excluded_items")?.mapNotNull {
+                it.asJsonObject.string("raw_name") } ?: emptyList(), root.string("merchant"),
+                root.long("total_vnd"), root.long("subtotal_vnd"), root.long("discount_vnd"),
+                root.long("line_total_vnd"), root.long("reconciliation_delta_vnd"), mode)
         } finally { connection.disconnect() }
     }
 
-    suspend fun createDraft(token: String, fridgeId: String, items: List<ReceiptItem>): ReceiptDraft {
+    suspend fun createDraft(token: String, fridgeId: String, scan: OcrScanResult): ReceiptDraft {
+        val items = scan.items
         require(fridgeId.isNotBlank()) { "Vui lòng chọn tủ lạnh trước khi quét hóa đơn." }
         require(items.isNotEmpty()) { "Không có thực phẩm để tạo bản nháp." }
         val body = JsonObject().apply {
             addProperty("fridge_id", fridgeId)
+            addProperty("source_type", if (scan.mode == ScanMode.RECEIPT) "receipt" else "product")
+            addProperty("merchant", scan.merchant)
+            addProperty("receipt_total_vnd", scan.totalVnd)
+            addProperty("receipt_subtotal_vnd", scan.subtotalVnd)
+            addProperty("receipt_discount_vnd", scan.discountVnd)
+            addProperty("receipt_line_total_vnd", scan.lineTotalVnd)
             add("items", JsonArray().apply { items.forEach { add(it.json(includeIdentity = true)) } })
         }
         val result = request(token, "scans", "POST", body).asJsonObject
@@ -127,13 +150,20 @@ class ScanRepository(
         return JsonParser.parseString(text)
     }
     private fun ReceiptItem.json(includeIdentity: Boolean) = JsonObject().apply {
-        if (includeIdentity) { addProperty("name", name); addProperty("ingredient_id", ingredientId) }
-        else addProperty("id", id)
+        if (!includeIdentity) addProperty("id", id)
+        addProperty("name", name)
+        addProperty("ingredient_id", ingredientId)
         addProperty("qty_display", quantity)
         addProperty("unit_display", unit)
         addProperty("purchased_at", purchasedAt)
         addProperty("expiry_date", expiryDate)
+        addProperty("raw_name", rawName)
+        addProperty("unit_price_vnd", unitPriceVnd)
+        addProperty("price_vnd", priceVnd)
+        addProperty("source_type", sourceType)
+        addProperty("match_status", matchStatus)
     }
     private fun JsonObject.string(key: String) = get(key)?.takeUnless { it.isJsonNull }?.asString
+    private fun JsonObject.long(key: String) = get(key)?.takeUnless { it.isJsonNull }?.asLong
     private fun encode(value: String) = URLEncoder.encode(value, "UTF-8")
 }

@@ -15,6 +15,8 @@ data class RecipesUiState(
     val updatingFavorites: Set<String> = emptySet(),
     val favoritesReady: Boolean = false,
     val query: String = "",
+    val cookingMethods: List<String> = emptyList(),
+    val selectedMethod: String? = null,
     val isLoading: Boolean = true,
     val error: String? = null,
     val message: String? = null,

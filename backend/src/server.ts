@@ -17,6 +17,10 @@ app.use("/recipes", recipesRoutes);
 app.use("/fridges", fridgesRoutes);
 app.use("/favorites", favoritesRoutes);
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  app.listen(Number(process.env.PORT ?? 3000), "0.0.0.0");
-}
+// This module is the backend entry point (used by `tsx watch` and `node dist/server.js`).
+// Comparing import.meta.url with process.argv[1] is unreliable on Windows because
+// the former is a file URL while the latter is a Windows filesystem path.
+const port = Number(process.env.PORT ?? 3000);
+app.listen(port, "0.0.0.0", () => {
+  console.log(`FridgeWise backend listening on http://0.0.0.0:${port}`);
+});

@@ -17,8 +17,18 @@ data class Food(
     val unit: String? = null,
     val location: String? = null,
     val purchasedAt: String? = null,
-    val expiryDate: String? = null
+    val expiryDate: String? = null,
+    val ingredientId: String? = null,
+    val imageUrl: String? = null,
+    val priceVnd: Long? = null,
+    val unitPriceVnd: Long? = null
 ) {
+    // Prefer unit price × current quantity so partially used stock is not counted at its original full price.
+    val estimatedValueVnd: Long? get() = when {
+        unitPriceVnd != null && quantity != null -> (unitPriceVnd * quantity).toLong()
+        else -> priceVnd
+    }
+
     val quantityLabel: String get() = quantity?.let {
         "${BigDecimal.valueOf(it).stripTrailingZeros().toPlainString()} ${unit.orEmpty()}".trim()
     } ?: "—"

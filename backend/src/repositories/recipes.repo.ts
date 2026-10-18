@@ -97,6 +97,22 @@ export async function fetchRecipeCards(
   return ids.map((id) => map.get(id)).filter((r) => r !== undefined);
 }
 
+export async function fetchRecipeMethods(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  client: any = supabaseAdmin,
+): Promise<string[]> {
+  const q = client.from("Recipe").select("method").not("method", "is", null).order("method");
+  const methods = ((await pageAll(q)) as Array<{ method: string | null }>)
+    .map((row) => row.method?.trim())
+    .filter((method): method is string => Boolean(method));
+  return [...new Set(methods)];
+}
+
+export async function fetchRecipeIdsByMethod(method: string): Promise<string[]> {
+  const q = supabaseAdmin.from("Recipe").select("id").eq("method", method);
+  return ((await pageAll(q)) as Array<{ id: string }>).map((row) => row.id);
+}
+
 export interface RecipeDetailRow {
   recipeId?: string;
   servings: number | null;

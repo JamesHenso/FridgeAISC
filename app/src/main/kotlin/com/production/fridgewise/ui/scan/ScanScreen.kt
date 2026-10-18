@@ -50,6 +50,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import com.production.fridgewise.R
+import com.production.fridgewise.domain.model.ScanMode
 import java.io.File
 
 private val ScanLime = Color(0xFFB9ED6A)
@@ -81,10 +82,10 @@ fun ScanRoute(accessToken: String, fridgeId: String?, onClose: () -> Unit, onCom
         lifecycle.lifecycle.addObserver(observer)
         onDispose { lifecycle.lifecycle.removeObserver(observer) }
     }
-    DisposableEffect(controller, lifecycle, permission, state.photoUri) {
+    DisposableEffect(controller, lifecycle, permission, state.photoUri, state.labelCaptureTarget, state.labelPhotoUri) {
         var active = true
         ready = false
-        if (permission && state.photoUri == null) {
+        if (permission && (state.photoUri == null || (state.labelCaptureTarget != null && state.labelPhotoUri == null))) {
             val initialized = controller.initializationFuture
             initialized.addListener({
                 if (active) {
@@ -125,14 +126,16 @@ fun ScanRoute(accessToken: String, fridgeId: String?, onClose: () -> Unit, onCom
             previousNavigation?.let { bars?.isAppearanceLightNavigationBars = it }
         }
     }
-    val close = { model.retake(); onClose() }
-    state.photoUri?.let { photo ->
-        ReceiptReviewRoute(photo, accessToken, fridgeId, reviewOwner = model, onBack = model::retake,
-            onComplete = { model.retake(); onComplete() }, onExit = close)
+    val close = { if (state.labelCaptureTarget != null) model.cancelLabelCapture() else { model.retake(); onClose() } }
+    state.photoUri?.takeIf { state.labelCaptureTarget == null || state.labelPhotoUri != null }?.let { photo ->
+        ReceiptReviewRoute(photo, accessToken, fridgeId, state.mode, reviewOwner = model,
+            labelPhotoUri = state.labelPhotoUri, labelTargetId = state.labelCaptureTarget,
+            onLabelConsumed = model::consumeLabelPhoto, onScanLabel = model::startLabelCapture,
+            onBack = model::retake, onComplete = { model.retake(); onComplete() })
         return
     }
     BackHandler(onBack = close)
-    ScanScreen(state, permission, ready, onClose = close,
+    ScanScreen(state, permission, ready, onClose = close, onMode = model::setMode,
         onTorch = { model.setTorch(!state.torch) },
         onGallery = { gallery.launch("image/*") },
         onPermission = {
@@ -142,7 +145,7 @@ fun ScanRoute(accessToken: String, fridgeId: String?, onClose: () -> Unit, onCom
             if (ready && model.beginCapture()) {
                 val generation = model.captureGeneration
                 try {
-                    val file = File(context.cacheDir, "receipt-${System.currentTimeMillis()}.jpg")
+                    val file = File(context.cacheDir, "scan-${System.currentTimeMillis()}.jpg")
                     controller.takePicture(ImageCapture.OutputFileOptions.Builder(file).build(), executor,
                         object : ImageCapture.OnImageSavedCallback {
                             override fun onImageSaved(result: ImageCapture.OutputFileResults) {
@@ -167,13 +170,14 @@ fun ScanRoute(accessToken: String, fridgeId: String?, onClose: () -> Unit, onCom
 @Composable
 private fun ScanScreen(
     state: ScanUiState, permission: Boolean, ready: Boolean,
-    onClose: () -> Unit, onTorch: () -> Unit, onGallery: () -> Unit,
+    onClose: () -> Unit, onMode: (ScanMode) -> Unit, onTorch: () -> Unit, onGallery: () -> Unit,
     onPermission: () -> Unit, onCapture: () -> Unit, onRetake: () -> Unit,
     camera: @Composable () -> Unit
 ) {
-    val reviewing = state.photoUri != null
+    val reviewing = state.photoUri != null && state.labelCaptureTarget == null
+    val product = state.mode == ScanMode.PRODUCT || state.labelCaptureTarget != null
     Box(Modifier.fillMaxSize().background(Color(0xFF18241F))) {
-        if (reviewing) AsyncImage(state.photoUri, "Ảnh hóa đơn", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+        if (reviewing) AsyncImage(state.photoUri, "Ảnh cần quét", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
         else camera()
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = if (reviewing) 0.05f else 0.22f)))
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 16.dp),
@@ -183,11 +187,15 @@ private fun ScanScreen(
                 IconButton(onClick = onClose, Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f))) {
                     Icon(Icons.Outlined.Close, "Đóng máy quét", tint = Color.White, modifier = Modifier.size(21.dp))
                 }
-                Text(if (reviewing) "Ảnh hóa đơn" else "Quét hóa đơn", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                Text(if (state.labelCaptureTarget != null) "Quét HSD sản phẩm" else if (product) "Quét sản phẩm" else "Quét hóa đơn", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                 IconToggleButton(checked = state.torch, onCheckedChange = { onTorch() }, enabled = ready && !reviewing,
                     modifier = Modifier.size(44.dp).clip(CircleShape).background(if (state.torch) ScanLime else Color.White.copy(alpha = 0.14f))) {
                     Icon(painterResource(R.drawable.ic_bolt), "Đèn flash", Modifier.size(23.dp), tint = if (state.torch) Color(0xFF24321D) else Color.White)
                 }
+            }
+            if (state.photoUri == null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = !product, onClick = { onMode(ScanMode.RECEIPT) }, label = { Text("Hóa đơn") })
+                FilterChip(selected = product, onClick = { onMode(ScanMode.PRODUCT) }, label = { Text("Sản phẩm") })
             }
             Spacer(Modifier.height(22.dp))
             Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 22.dp), contentAlignment = Alignment.Center) {
@@ -197,12 +205,12 @@ private fun ScanScreen(
                         Row(Modifier.padding(horizontal = 13.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Icon(painterResource(R.drawable.ic_scan), null, Modifier.size(13.dp), tint = Color(0xFF24321D))
-                            Text("GIỮ HÓA ĐƠN TRONG KHUNG", color = Color(0xFF24321D), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Text(if (product) "GIỮ NHÃN TRONG KHUNG" else "GIỮ HÓA ĐƠN TRONG KHUNG", color = Color(0xFF24321D), fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                     if (permission && ready && state.error == null) ScanLine()
                     if (!permission) Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Cho phép truy cập camera để chụp hóa đơn, hoặc chọn ảnh từ thư viện.", color = Color.White, textAlign = TextAlign.Center)
+                        Text("Cho phép truy cập camera hoặc chọn ảnh từ thư viện.", color = Color.White, textAlign = TextAlign.Center)
                         TextButton(onClick = onPermission) { Text("Mở cài đặt camera", color = ScanLime) }
                     } else if (!ready && state.error == null) CircularProgressIndicator(color = ScanLime)
                 }
@@ -210,13 +218,13 @@ private fun ScanScreen(
                     modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(Color.Black.copy(alpha = 0.65f)).padding(16.dp)) }
             }
             Surface(shape = CircleShape, color = Color(0xCC253C34), modifier = Modifier.padding(top = 10.dp)) {
-                Text(if (reviewing) "Ảnh đã sẵn sàng • Kiểm tra độ rõ của hóa đơn" else "Đặt hóa đơn phẳng, tránh bóng đổ",
+                Text(if (reviewing) "Ảnh đã sẵn sàng • Kiểm tra độ rõ" else if (product) "Chụp rõ tên, khối lượng, giá và HSD" else "Đặt hóa đơn phẳng, tránh bóng đổ",
                     color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 15.dp, vertical = 9.dp))
             }
             Box(Modifier.fillMaxWidth().height(102.dp), contentAlignment = Alignment.Center) {
                 IconButton(onClick = onGallery, enabled = !state.isCapturing,
                     modifier = Modifier.align(Alignment.CenterStart).size(48.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f))) {
-                    Icon(painterResource(R.drawable.ic_picture), "Chọn ảnh hóa đơn", Modifier.size(24.dp), tint = Color.White)
+                    Icon(painterResource(R.drawable.ic_picture), "Chọn ảnh", Modifier.size(24.dp), tint = Color.White)
                 }
                 if (reviewing) Button(onClick = onRetake, colors = ButtonDefaults.buttonColors(containerColor = ScanLime, contentColor = Color(0xFF24321D))) {
                     Text("Chụp lại")
@@ -256,7 +264,7 @@ private tailrec fun Context.activity(): Activity? = when (this) {
 private fun ScanPreview() {
     MaterialTheme {
         ScanScreen(ScanUiState(), permission = true, ready = true,
-            onClose = {}, onTorch = {}, onGallery = {}, onPermission = {},
+            onClose = {}, onMode = {}, onTorch = {}, onGallery = {}, onPermission = {},
             onCapture = {}, onRetake = {}, camera = {})
     }
 }

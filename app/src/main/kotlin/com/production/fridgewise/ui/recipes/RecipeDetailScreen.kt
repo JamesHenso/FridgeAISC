@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
@@ -34,6 +33,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.text.HtmlCompat
+import androidx.compose.ui.viewinterop.AndroidView
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -109,23 +111,27 @@ private fun RecipeDetailContent(detail: RecipeDetail, favorite: Boolean, favorit
             }
         }
         item {
-            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(20.dp)).background(Color(0xFFDDE8E2)),
-                contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(20.dp)).background(Color(0xFFDDE8E2))) {
                 AsyncImage(detail.recipe.imageUrl, detail.recipe.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
                     error = painterResource(R.drawable.auth_grocery_illustration), fallback = painterResource(R.drawable.auth_grocery_illustration))
-                if (detail.videoUrl != null) {
-                    FilledIconButton(onClick = {
+            }
+        }
+        item {
+            val videoId = youtubeVideoId(detail.videoUrl)
+            if (videoId != null) {
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("Video hướng dẫn", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    YouTubeInlinePlayer(videoId, Modifier.fillMaxWidth())
+                    TextButton(onClick = {
                         try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(detail.videoUrl))) }
                         catch (_: ActivityNotFoundException) { scope.launch { snackbar.showSnackbar("Không tìm thấy ứng dụng mở video.") } }
-                    }, modifier = Modifier.size(64.dp), colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White)) {
-                        Icon(Icons.Filled.PlayArrow, "Phát video hướng dẫn", Modifier.size(34.dp))
-                    }
-                    Surface(Modifier.align(Alignment.BottomEnd).padding(12.dp), shape = RoundedCornerShape(8.dp), color = Color(0xAA101D29)) {
-                        Text("Video hướng dẫn", Modifier.padding(horizontal = 10.dp, vertical = 5.dp), color = Color.White, fontSize = 11.sp)
-                    }
-                } else Surface(Modifier.align(Alignment.BottomCenter).padding(10.dp), shape = RoundedCornerShape(8.dp), color = Color(0xAA101D29)) {
-                    Text("Chưa có video hướng dẫn", Modifier.padding(8.dp), fontSize = 11.sp, color = Color.White)
+                    }, modifier = Modifier.align(Alignment.End)) { Text("Mở trên YouTube") }
                 }
+            } else if (detail.videoUrl != null) {
+                TextButton(onClick = {
+                    try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(detail.videoUrl))) }
+                    catch (_: ActivityNotFoundException) { scope.launch { snackbar.showSnackbar("Không tìm thấy ứng dụng mở video.") } }
+                }) { Text("Mở video hướng dẫn") }
             }
         }
         item {
@@ -209,15 +215,74 @@ private fun BulletLine(text: String, number: Int? = null, bullets: Boolean = tru
 @Composable
 private fun InstructionLines(raw: String?, numbered: Boolean = false, bullets: Boolean = true) {
     val lines = remember(raw) {
-        val plain = if (raw?.contains(Regex("</?[A-Za-z][^>]*>")) == true)
-            HtmlCompat.fromHtml(raw, HtmlCompat.FROM_HTML_MODE_LEGACY).toString() else raw.orEmpty()
-        plain.lines().map { it.trim() }.filter { it.isNotBlank() }
+        val formatted = raw.orEmpty()
+            .replace(Regex("(?i)<br\\s*/?>"), "\n")
+            .replace(Regex("(?i)</(p|div|li|h[1-6])\\s*>"), "\n")
+            .replace(Regex("(?i)<li[^>]*>"), "\n")
+        val plain = if (formatted.contains(Regex("</?[A-Za-z][^>]*>")))
+            HtmlCompat.fromHtml(formatted, HtmlCompat.FROM_HTML_MODE_LEGACY).toString() else formatted
+        plain.lines().map { it.trim().replace(Regex("^[•*\\-]\\s*"), "") }.filter { it.isNotBlank() }
     }
     if (lines.isEmpty()) Text("Chưa có hướng dẫn.", color = DetailMuted, fontSize = 14.sp)
     lines.forEachIndexed { index, line ->
-        BulletLine(if (numbered) line.replace(Regex("^\\d+[.)]\\s*"), "") else line,
-            if (numbered) index + 1 else null, bullets)
+        val step = if (numbered) line.replace(Regex("^\\d+[.)]\\s*"), "") else line
+        if (numbered) {
+            Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFFF4F8F6), modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(11.dp), verticalAlignment = Alignment.Top) {
+                    Surface(shape = CircleShape, color = DetailGreen) {
+                        Text("${index + 1}", Modifier.size(27.dp), textAlign = TextAlign.Center, color = Color.White,
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold, lineHeight = 27.sp)
+                    }
+                    Text(step, Modifier.weight(1f), fontSize = 15.sp, lineHeight = 23.sp, color = Color(0xFF26352F))
+                }
+            }
+        } else if (!bullets) {
+            Text(step, Modifier.fillMaxWidth().padding(vertical = 3.dp), fontSize = 15.sp, lineHeight = 24.sp, color = Color(0xFF35423D))
+        } else {
+            BulletLine(step)
+        }
     }
+}
+
+@Composable
+private fun YouTubeInlinePlayer(videoId: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val html = remember(videoId) {
+        """<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"></head>
+            <body style="margin:0;background:#000"><div style="position:relative;width:100%;aspect-ratio:16/9;min-height:200px">
+            <iframe width="100%" height="100%" style="position:absolute;inset:0;border:0"
+            src="https://www.youtube-nocookie.com/embed/$videoId?playsinline=1&controls=1&rel=0" title="Recipe video"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div></body></html>""".trimIndent()
+    }
+    val webView = remember(videoId) {
+        WebView(context).apply {
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.mediaPlaybackRequiresUserGesture = true
+            isVerticalScrollBarEnabled = false
+            isHorizontalScrollBarEnabled = false
+            setBackgroundColor(android.graphics.Color.BLACK)
+            webViewClient = WebViewClient()
+            loadDataWithBaseURL("https://www.youtube-nocookie.com", html, "text/html", "UTF-8", null)
+        }
+    }
+    DisposableEffect(webView) { onDispose { webView.destroy() } }
+    AndroidView(factory = { webView }, modifier = modifier.fillMaxWidth().heightIn(min = 200.dp).aspectRatio(16f / 9f))
+}
+
+private fun youtubeVideoId(url: String?): String? {
+    val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return null
+    val host = uri.host?.lowercase().orEmpty()
+    val id = when {
+        host == "youtu.be" -> uri.pathSegments.firstOrNull()
+        host == "youtube.com" || host == "www.youtube.com" || host == "m.youtube.com" || host == "youtube-nocookie.com" ->
+            uri.getQueryParameter("v") ?: uri.pathSegments.let { segments ->
+                val marker = segments.indexOfFirst { it == "embed" || it == "shorts" }
+                if (marker >= 0) segments.getOrNull(marker + 1) else null
+            }
+        else -> null
+    }
+    return id?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{11}")) }
 }
 
 @Composable

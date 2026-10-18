@@ -8,7 +8,12 @@ function sendErr(res: Response, e: unknown) {
 
 export async function create(req: Request, res: Response) {
   try {
-    res.status(201).json(await createScanWithItems(String(req.body.fridge_id ?? ""), req.body.items ?? []));
+    res.status(201).json(await createScanWithItems(String(req.body.fridge_id ?? ""), req.body.items ?? [], undefined,
+      { source_type: req.body.source_type ?? null, merchant: req.body.merchant ?? null,
+        receipt_total_vnd: req.body.receipt_total_vnd ?? null,
+        receipt_subtotal_vnd: req.body.receipt_subtotal_vnd ?? null,
+        receipt_discount_vnd: req.body.receipt_discount_vnd ?? null,
+        receipt_line_total_vnd: req.body.receipt_line_total_vnd ?? null }));
   } catch (e) {
     sendErr(res, e);
   }

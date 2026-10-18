@@ -1,8 +1,11 @@
 # Product retrieval
 
-The runtime no longer uses `FOOD_ALIASES` or `NON_FOOD_ALIASES`. Product names
-are normalized, checked for an unambiguous exact match, and then searched in a
-combined food/non-food catalogue.
+The runtime no longer uses `FOOD_ALIASES` or `NON_FOOD_ALIASES`. Receipt lines
+are checked against non-food signals/catalog entries first. Remaining lines are
+searched against a food-only index, so kitchenware cannot win merely because a
+token overlaps an ingredient name. Low-confidence rows retain the OCR name and
+do not receive an ingredient ID. BM25 ranks candidates; it does not provide a
+percentage similarity.
 
 The following retrieval variants are available:
 
@@ -49,9 +52,13 @@ python3 -m unittest discover -s tests -v
 
 ## Runtime behavior
 
-The receipt path first uses an unambiguous exact database match. Otherwise it
-accepts the top-1 result from dual BM25. Non-food and unmatched rows are not
-returned in `items`. The API response exposes only the `items` field.
+Both receipt and product paths silently exclude confident non-food rows first,
+then search the food-only catalog. Exact matches and confident retrieval
+matches are assigned the canonical catalog name and `ingredient_id`
+automatically. Fuzzy top matches at score >= 0.85 also auto-map for both scan
+types. Below-threshold rows preserve the raw OCR name, leave `ingredient_id`
+null, and expose food candidates for user selection. The old `process_products`
+helper remains for offline retrieval evaluation.
 
 Every returned item has this public shape:
 
@@ -66,4 +73,5 @@ Every returned item has this public shape:
 }
 ```
 
-`unit_display` always comes from the receipt. CSV `base_unit` is not used.
+The example above documents the legacy helper. New API responses keep the
+receipt unit and price, and never assign the current date as an expiry.

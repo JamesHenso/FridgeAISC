@@ -89,7 +89,7 @@ export async function getRecipe(
       ingredientId: f.ingredientId ?? resolveIngredientId(f.name, fridge.ings),
     }));
     const [r] = rankByMissing(
-      rows.map((row) => ({ recipeId, ingredientId: row.ingredientId, qty_base: row.qty_base })),
+      rows.map((row) => ({ recipeId, ingredientId: row.ingredientId, qty_base: row.qty_base, base_unit: row.base_unit })),
       resolved,
       fridge.ings,
     );

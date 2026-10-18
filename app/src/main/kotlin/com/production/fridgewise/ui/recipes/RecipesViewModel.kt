@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 class RecipesViewModel(
     private val token: String,
     private val fridgeId: String?,
+    private val focusIngredientId: String? = null,
     private val repository: RecipesRepository = RecipesRepository()
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(RecipesUiState())
@@ -28,6 +29,22 @@ class RecipesViewModel(
     fun refresh() {
         load()
         loadFavorites()
+        loadMethods()
+    }
+
+    private fun loadMethods() {
+        viewModelScope.launch {
+            try {
+                val methods = repository.cookingMethods(token)
+                _uiState.update { it.copy(cookingMethods = methods) }
+            } catch (e: CancellationException) { throw e
+            } catch (_: Exception) { /* Recipe browsing still works if method metadata is unavailable. */ }
+        }
+    }
+
+    fun selectMethod(method: String?) {
+        _uiState.update { it.copy(selectedMethod = method) }
+        load()
     }
 
     fun search(query: String) {
@@ -41,7 +58,8 @@ class RecipesViewModel(
         loadJob = viewModelScope.launch {
             try {
                 if (debounce) delay(300)
-                val recipes = repository.recipes(token, fridgeId, _uiState.value.query)
+                val current = _uiState.value
+                val recipes = repository.recipes(token, fridgeId, current.query, current.selectedMethod, focusIngredientId)
                 _uiState.update { it.copy(recipes = recipes, isLoading = false) }
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {

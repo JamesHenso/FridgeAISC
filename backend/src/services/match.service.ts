@@ -6,6 +6,8 @@ export interface FridgeItem {
   ingredientId?: string | null;
   name?: string;
   qty_base?: number | null;
+  base_unit?: string | null;
+  expiry_date?: string | null;
 }
 
 export interface MissingIngredient {
@@ -17,22 +19,31 @@ export interface RankedRecipe {
   recipeId: string;
   matched: number;
   missing: number;
+  urgencyScore: number;
   enough: boolean;
   matchedIngredients: MissingIngredient[];
   missingIngredients: MissingIngredient[];
 }
 
-// Pure: only recipes overlapping the fridge (matched > 0) are listed;
-// sort most-overlap first, fewest-missing second. Null-ingredient rows are skipped.
+// Ranks recipes by ingredients that can use non-expired stock (with extra weight
+// for near-expiry lots), then fewer missing ingredients. Unknown recipe rows are skipped.
 export function rankByMissing(
-  recipeRows: Array<{ recipeId: string; ingredientId: string | null; qty_base: number | null }>,
+  recipeRows: Array<{ recipeId: string; ingredientId: string | null; qty_base: number | null; base_unit?: string | null }>,
   fridge: FridgeItem[],
   ings: Array<{ id: string; name: string }> = [],
+  today = new Date().toISOString().slice(0, 10),
 ): RankedRecipe[] {
-  const haveIds = new Set(fridge.map((f) => f.ingredientId).filter(Boolean) as string[]);
-  const fridgeQty = new Map(
-    fridge.filter((f) => f.ingredientId).map((f) => [f.ingredientId as string, f.qty_base ?? null]),
-  );
+  const stock = new Map<string, Array<{ qty: number | null; unit: string | null; expiry: string | null; urgency: number }>>();
+  for (const item of fridge) {
+    if (!item.ingredientId) continue;
+    const expiry = item.expiry_date?.slice(0, 10) ?? null;
+    if (expiry && expiry < today) continue; // expired lots are not cookable stock
+    const days = expiry ? Math.round((Date.parse(`${expiry}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000) : null;
+    const urgency = days == null ? 0 : days <= 1 ? 3 : days <= 3 ? 2 : days <= 7 ? 1 : 0;
+    const lots = stock.get(item.ingredientId) ?? [];
+    lots.push({ qty: item.qty_base ?? null, unit: item.base_unit ?? null, expiry, urgency });
+    stock.set(item.ingredientId, lots);
+  }
   const names = new Map(ings.map((i) => [i.id, i.name]));
   const byRecipe = new Map<string, typeof recipeRows>();
   for (const r of recipeRows) {
@@ -44,16 +55,35 @@ export function rankByMissing(
   for (const [id, rows] of byRecipe) {
     let matched = 0;
     let missing = 0;
+    let urgencyScore = 0;
+    const countedUrgentIngredients = new Set<string>();
     const matchedIngredients: MissingIngredient[] = [];
     const missingIngredients: MissingIngredient[] = [];
     for (const row of rows) {
       if (!row.ingredientId) continue; // unknown ingredient, can't judge
-      if (!haveIds.has(row.ingredientId)) {
+      const lots = stock.get(row.ingredientId);
+      if (!lots?.length) {
         missing++; // need it, don't have it (qty irrelevant)
         missingIngredients.push({ ingredientId: row.ingredientId, name: names.get(row.ingredientId) ?? null });
-      } else if (row.qty_base != null) {
-        const fq = fridgeQty.get(row.ingredientId);
-        if (fq != null && fq < row.qty_base) {
+      } else {
+        const quantitiesComparable = row.qty_base != null && row.base_unit != null &&
+          lots.every((lot) => lot.qty != null && lot.unit === row.base_unit);
+        const totalQty = quantitiesComparable ? lots.reduce((sum, lot) => sum + (lot.qty ?? 0), 0) : null;
+        if (!countedUrgentIngredients.has(row.ingredientId)) {
+          if (quantitiesComparable && row.qty_base! > 0) {
+            let leftToAllocate = row.qty_base!;
+            for (const lot of [...lots].sort((a, b) => (a.expiry ?? "9999-12-31").localeCompare(b.expiry ?? "9999-12-31"))) {
+              const used = Math.min(leftToAllocate, lot.qty ?? 0);
+              urgencyScore += lot.urgency * used / row.qty_base!;
+              leftToAllocate -= used;
+              if (leftToAllocate <= 0) break;
+            }
+          } else {
+            urgencyScore += Math.max(...lots.map((lot) => lot.urgency));
+          }
+        }
+        countedUrgentIngredients.add(row.ingredientId);
+        if (totalQty != null && totalQty < row.qty_base!) {
           missing++; // have it but not enough
           matched++; // still overlap: fridge contains this ingredient
           matchedIngredients.push({ ingredientId: row.ingredientId, name: names.get(row.ingredientId) ?? null });
@@ -62,15 +92,12 @@ export function rankByMissing(
           matched++;
           matchedIngredients.push({ ingredientId: row.ingredientId, name: names.get(row.ingredientId) ?? null });
         }
-      } else {
-        matched++;
-        matchedIngredients.push({ ingredientId: row.ingredientId, name: names.get(row.ingredientId) ?? null });
       }
     }
-    if (matched === 0) continue; // no overlap with fridge, not a suggestion
-    out.push({ recipeId: id, matched, missing, enough: missing === 0, matchedIngredients, missingIngredients });
+    if (matched === 0 && missing === 0) continue; // no mapped ingredient rows to evaluate
+    out.push({ recipeId: id, matched, missing, urgencyScore, enough: missing === 0, matchedIngredients, missingIngredients });
   }
-  return out.sort((a, b) => b.matched - a.matched || a.missing - b.missing);
+  return out.sort((a, b) => b.urgencyScore - a.urgencyScore || a.missing - b.missing || b.matched - a.matched);
 }
 
 export async function matchRecipes(

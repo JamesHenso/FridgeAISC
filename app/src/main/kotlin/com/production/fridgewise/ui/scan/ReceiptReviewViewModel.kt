@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.production.fridgewise.data.repository.ScanRepository
 import com.production.fridgewise.domain.model.ReceiptItem
-import com.production.fridgewise.domain.model.ReceiptPlacement
+import com.production.fridgewise.domain.model.ScanMode
 import java.io.InputStream
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -19,15 +19,21 @@ data class ReceiptReviewState(
     val loading: Boolean = true,
     val stage: String = "Đang đọc hóa đơn…",
     val items: List<ReceiptItem> = emptyList(),
+    val excludedNames: List<String> = emptyList(),
+    val merchant: String? = null,
+    val receiptTotalVnd: Long? = null,
+    val receiptSubtotalVnd: Long? = null,
+    val receiptDiscountVnd: Long? = null,
+    val reconciliationDeltaVnd: Long? = null,
+    val mode: ScanMode = ScanMode.RECEIPT,
     val scanId: String? = null,
     val error: String? = null,
     val saving: Boolean = false,
     val editingId: String? = null,
     val editError: String? = null,
-    val placing: Boolean = false,
-    val placement: ReceiptPlacement = ReceiptPlacement(),
+    val labelSuggestion: ReceiptItem? = null,
+    val labelScanning: Boolean = false,
     val committing: Boolean = false,
-    val locationsSaved: Boolean = false,
     val commitError: String? = null,
     val completed: Boolean = false
 )
@@ -39,24 +45,33 @@ class ReceiptReviewViewModel(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ReceiptReviewState())
     val uiState = _uiState.asStateFlow()
-    private var recognized: List<ReceiptItem>? = null
+    private var recognized: com.production.fridgewise.domain.model.OcrScanResult? = null
     private var loadJob: Job? = null
     private var saveJob: Job? = null
     private var commitJob: Job? = null
 
-    fun load(mimeType: String, image: () -> InputStream) {
+    fun load(mode: ScanMode, mimeType: String, image: () -> InputStream) {
         if (loadJob?.isActive == true || _uiState.value.scanId != null) return
         _uiState.update { it.copy(loading = true, error = null) }
         loadJob = viewModelScope.launch {
             try {
                 require(!fridgeId.isNullOrBlank()) { "Vui lòng chọn tủ lạnh ở Inventory trước khi quét hóa đơn." }
-                val items = recognized ?: repository.recognize(mimeType, image).also { recognized = it }
-                if (items.isEmpty()) {
-                    _uiState.update { it.copy(loading = false, items = emptyList()) }
+                val scan = recognized ?: repository.recognize(mode, mimeType, image).also { recognized = it }
+                if (scan.items.isEmpty()) {
+                    _uiState.update { it.copy(loading = false, items = emptyList(),
+                        excludedNames = scan.excludedNames, merchant = scan.merchant,
+                        receiptTotalVnd = scan.totalVnd, receiptSubtotalVnd = scan.subtotalVnd,
+                        receiptDiscountVnd = scan.discountVnd,
+                        reconciliationDeltaVnd = scan.reconciliationDeltaVnd, mode = scan.mode) }
                 } else {
                     _uiState.update { it.copy(stage = "Đang chuẩn bị danh sách…") }
-                    val draft = repository.createDraft(token, fridgeId, items)
-                    _uiState.update { it.copy(loading = false, items = draft.items, scanId = draft.scanId) }
+                    val draft = repository.createDraft(token, fridgeId, scan)
+                    _uiState.update { it.copy(loading = false, items = draft.items, scanId = draft.scanId,
+                        excludedNames = scan.excludedNames, merchant = scan.merchant,
+                        receiptTotalVnd = scan.totalVnd, receiptSubtotalVnd = scan.subtotalVnd,
+                        receiptDiscountVnd = scan.discountVnd,
+                        reconciliationDeltaVnd = scan.reconciliationDeltaVnd,
+                        mode = scan.mode) }
                 }
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
@@ -65,7 +80,33 @@ class ReceiptReviewViewModel(
             }
         }
     }
-    fun edit(id: String?) { _uiState.update { it.copy(editingId = id, editError = null) } }
+    fun edit(id: String?) { _uiState.update { it.copy(editingId = id, editError = null,
+        labelSuggestion = if (id == null) null else it.labelSuggestion) } }
+
+    fun scanLabel(id: String, mimeType: String, image: () -> InputStream) {
+        if (_uiState.value.labelScanning) return
+        _uiState.update { it.copy(labelScanning = true, editError = null) }
+        viewModelScope.launch {
+            try {
+                val label = repository.recognize(ScanMode.PRODUCT, mimeType, image).items.firstOrNull()
+                    ?: error("Không đọc được nhãn sản phẩm. Hãy thử ảnh rõ hơn hoặc nhập tay.")
+                require(label.expiryDate != null) { "Không tìm thấy HSD trên nhãn. Hãy chụp rõ dòng HSD hoặc nhập tay." }
+                _uiState.update { state ->
+                    val target = state.items.firstOrNull { it.id == id } ?: return@update state
+                    state.copy(labelSuggestion = target.copy(
+                        expiryDate = label.expiryDate ?: target.expiryDate,
+                        quantity = label.quantity ?: target.quantity,
+                        unit = label.unit ?: target.unit,
+                        priceVnd = label.priceVnd ?: target.priceVnd,
+                        unitPriceVnd = label.unitPriceVnd ?: target.unitPriceVnd
+                    ), editingId = id)
+                }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                _uiState.update { it.copy(editError = e.message ?: "Không đọc được nhãn sản phẩm.") }
+            } finally { _uiState.update { it.copy(labelScanning = false) } }
+        }
+    }
     fun save(item: ReceiptItem) {
         val scanId = _uiState.value.scanId ?: return
         if (_uiState.value.saving) return
@@ -73,7 +114,7 @@ class ReceiptReviewViewModel(
         saveJob = viewModelScope.launch {
             try {
                 repository.updateItem(token, scanId, item)
-                _uiState.update { state -> state.copy(items = state.items.map { if (it.id == item.id) item else it }, editingId = null) }
+                _uiState.update { state -> state.copy(items = state.items.map { if (it.id == item.id) item else it }, editingId = null, labelSuggestion = null) }
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 currentCoroutineContext().ensureActive()
@@ -81,39 +122,15 @@ class ReceiptReviewViewModel(
             } finally { _uiState.update { it.copy(saving = false) } }
         }
     }
-    fun startPlacement() {
-        _uiState.update {
-            if (it.scanId == null || it.items.isEmpty() || it.saving) it
-            else it.copy(placing = true, editingId = null)
-        }
-    }
-    fun backToReview() {
-        _uiState.update { if (it.committing || it.locationsSaved) it else it.copy(placing = false, commitError = null) }
-    }
-    fun place(id: String, location: String) {
-        _uiState.update {
-            if (!it.placing || it.committing || it.locationsSaved) it
-            else it.copy(placement = it.placement.place(it.items, id, location), commitError = null)
-        }
-    }
-    fun undoPlacement() {
-        _uiState.update {
-            if (it.committing || it.locationsSaved) it
-            else it.copy(placement = it.placement.undo(), commitError = null)
-        }
-    }
     fun finish() {
         val state = _uiState.value
         val scanId = state.scanId ?: return
-        if (state.committing || state.completed || !state.placement.isComplete(state.items)) return
+        if (state.committing || state.completed || state.items.isEmpty() || state.items.any { it.ingredientId.isNullOrBlank() }) return
         _uiState.update { it.copy(committing = true, commitError = null) }
         commitJob = viewModelScope.launch {
             try {
-                if (!_uiState.value.locationsSaved) {
-                    repository.assignLocations(token, scanId, state.placement.locations)
-                    _uiState.update { it.copy(locationsSaved = true) }
-                }
-                // If the response was lost, retry only commit: the server recognizes committed scans.
+                // Inventory no longer asks users to choose fridge/freezer. The backend
+                // stores a compatibility default for the legacy location column.
                 repository.commit(token, scanId)
                 _uiState.update { it.copy(completed = true) }
             } catch (e: CancellationException) { throw e

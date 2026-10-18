@@ -33,9 +33,12 @@ class InventoryRepository(private val baseUrl: String = BuildConfig.API_BASE_URL
             Food(
                 id = row.get("id").asString,
                 name = row.get("name").asString,
+                ingredientId = row.string("ingredient_id"),
                 quantity = row.get("qty_display")?.takeUnless { value -> value.isJsonNull }?.asDouble,
                 unit = row.string("unit_display"), location = row.string("location"),
-                purchasedAt = row.string("purchased_at"), expiryDate = row.string("expiry_date")
+                purchasedAt = row.string("purchased_at"), expiryDate = row.string("expiry_date"),
+                imageUrl = row.string("image_url"),
+                priceVnd = row.long("price_vnd"), unitPriceVnd = row.long("unit_price_vnd")
             )
         }
     }
@@ -69,4 +72,5 @@ class InventoryRepository(private val baseUrl: String = BuildConfig.API_BASE_URL
 
     private fun encode(value: String) = URLEncoder.encode(value, "UTF-8")
     private fun JsonObject.string(key: String): String? = get(key)?.takeUnless { it.isJsonNull }?.asString
+    private fun JsonObject.long(key: String): Long? = get(key)?.takeUnless { it.isJsonNull }?.asLong
 }

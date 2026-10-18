@@ -8,13 +8,15 @@ type Client = any;
 export async function fetchFoods(fridgeId: string, client: Client = supabaseAdmin): Promise<FridgeItem[]> {
   const { data, error } = await client
     .from("foods")
-    .select("ingredient_id,name,qty_base")
+    .select("ingredient_id,name,qty_base,base_unit,expiry_date")
     .eq("fridge_id", fridgeId);
   if (error) throw error;
-  return ((data ?? []) as Array<{ ingredient_id: string | null; name: string; qty_base: number | null }>).map((f) => ({
+  return ((data ?? []) as Array<{ ingredient_id: string | null; name: string; qty_base: number | null; base_unit: string | null; expiry_date: string | null }>).map((f) => ({
     ingredientId: f.ingredient_id,
     name: f.name,
     qty_base: f.qty_base,
+    base_unit: f.base_unit,
+    expiry_date: f.expiry_date,
   }));
 }
 
@@ -29,19 +31,36 @@ export interface FoodRow {
   purchased_at: string | null;
   expiry_date: string | null;
   location: string | null;
+  unit_price_vnd: number | null;
+  price_vnd: number | null;
+  image_url?: string | null;
 }
 
 export async function listFoods(fridgeId: string, location?: string, q?: string, client: Client = supabaseAdmin): Promise<FoodRow[]> {
+  const select = "id,name,ingredient_id,qty_display,unit_display,qty_base,base_unit,purchased_at,expiry_date,location,unit_price_vnd,price_vnd";
   let qy = client
     .from("foods")
-    .select("id,name,ingredient_id,qty_display,unit_display,qty_base,base_unit,purchased_at,expiry_date,location")
+    .select(select)
     .eq("fridge_id", fridgeId)
     .order("expiry_date", { ascending: true, nullsFirst: false });
   if (location) qy = qy.eq("location", location);
   if (q?.trim()) qy = qy.ilike("name", `%${q.trim()}%`);
   const { data, error } = await qy;
   if (error) throw error;
-  return (data ?? []) as FoodRow[];
+  const foods = (data ?? []) as FoodRow[];
+  const ingredientIds = [...new Set(foods.map((food) => food.ingredient_id).filter((id): id is string => Boolean(id)))];
+  if (ingredientIds.length === 0) return foods;
+
+  // Ingredient thumbnails are optional; if the catalog query fails inventory still loads.
+  const { data: ingredients, error: catalogError } = await client
+    .from("Ingredients").select("id,image_url").in("id", ingredientIds);
+  if (catalogError) return foods;
+  const catalog = new Map(((ingredients ?? []) as Array<{ id: string; image_url: string | null }>)
+    .map((ingredient) => [ingredient.id, ingredient]));
+  return foods.map((food) => ({
+    ...food,
+    image_url: food.ingredient_id ? catalog.get(food.ingredient_id)?.image_url ?? null : null,
+  }));
 }
 
 export interface InventoryStats {

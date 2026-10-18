@@ -34,8 +34,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import coil3.compose.AsyncImage
 import com.production.fridgewise.R
 import com.production.fridgewise.domain.model.*
+import java.util.Locale
 import kotlinx.coroutines.launch
 
 private val InventoryGreen = Color(0xFF05C487)
@@ -53,6 +55,8 @@ fun InventoryRoute(accessToken: String, onSignIn: () -> Unit) {
     val scope = rememberCoroutineScope()
     var page by rememberSaveable { mutableStateOf("inventory") }
     var recipesFridgeId by rememberSaveable { mutableStateOf<String?>(null) }
+    var recipesFocusId by rememberSaveable { mutableStateOf<String?>(null) }
+    var recipesFocusName by rememberSaveable { mutableStateOf<String?>(null) }
     var scanFridgeId by rememberSaveable { mutableStateOf<String?>(null) }
     val inventoryScroll = rememberLazyListState()
     AnimatedContent(
@@ -70,18 +74,52 @@ fun InventoryRoute(accessToken: String, onSignIn: () -> Unit) {
                 scope.launch { snackbar.showSnackbar("Đã thêm thực phẩm vào Inventory") }
             })
         } else if (destination == "recipes") {
-            RecipesRoute(accessToken, recipesFridgeId, onBack = { page = "inventory" }, onSignIn = onSignIn)
+            RecipesRoute(accessToken, recipesFridgeId, onBack = { page = "inventory" }, onSignIn = onSignIn,
+                focusIngredientId = recipesFocusId, focusIngredientName = recipesFocusName)
+        } else if (destination == "report") {
+            WeeklyReportScreen(
+                state = state,
+                onRefresh = model::refresh,
+                onSignIn = onSignIn,
+                onFeature = { feature ->
+                    when (feature) {
+                        "Inventory" -> page = "inventory"
+                        "Scan" -> { scanFridgeId = state.selectedFridgeId; page = "scan" }
+                        "Settings" -> scope.launch { snackbar.showSnackbar("Settings — coming soon") }
+                        else -> scope.launch { snackbar.showSnackbar("$feature — coming soon") }
+                    }
+                }
+            )
         } else {
-            InventoryScreen(state, model::selectLocation, model::search, model::selectFridge,
-                model::refresh, onSignIn, snackbar, inventoryScroll) { feature ->
-                if (feature == "Recipes") {
-                    recipesFridgeId = state.selectedFridgeId
-                    page = "recipes"
-                } else if (feature == "Scan") {
-                    scanFridgeId = state.selectedFridgeId
-                    page = "scan"
-                } else scope.launch { snackbar.showSnackbar("$feature — coming soon") }
-            }
+            InventoryScreen(state, model::search, model::selectFridge,
+                model::refresh, onSignIn, snackbar, inventoryScroll,
+                onFeature = { feature ->
+                    if (feature == "Recipes") {
+                        recipesFridgeId = state.selectedFridgeId
+                        recipesFocusId = null
+                        recipesFocusName = null
+                        page = "recipes"
+                    } else if (feature == "Scan") {
+                        scanFridgeId = state.selectedFridgeId
+                        page = "scan"
+                    } else if (feature == "Report") {
+                        model.search("")
+                        model.selectLocation(null)
+                        page = "report"
+                    } else if (feature == "Inventory") {
+                        page = "inventory"
+                    } else scope.launch { snackbar.showSnackbar("$feature — coming soon") }
+                },
+                onUseFood = { food ->
+                    if (food.ingredientId.isNullOrBlank()) {
+                        scope.launch { snackbar.showSnackbar("Món này chưa được ghép với nguyên liệu trong danh mục.") }
+                    } else {
+                        recipesFridgeId = state.selectedFridgeId
+                        recipesFocusId = food.ingredientId
+                        recipesFocusName = food.name
+                        page = "recipes"
+                    }
+                })
         }
     }
 }
@@ -89,14 +127,14 @@ fun InventoryRoute(accessToken: String, onSignIn: () -> Unit) {
 @Composable
 fun InventoryScreen(
     state: InventoryUiState,
-    onLocation: (String?) -> Unit,
     onSearch: (String) -> Unit,
     onFridge: (String) -> Unit,
     onRefresh: () -> Unit,
     onSignIn: () -> Unit,
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     listState: LazyListState = rememberLazyListState(),
-    onFeature: (String) -> Unit
+    onFeature: (String) -> Unit,
+    onUseFood: (Food) -> Unit = {}
 ) {
     var showSearch by rememberSaveable { mutableStateOf(false) }
     var showFridges by remember { mutableStateOf(false) }
@@ -104,7 +142,7 @@ fun InventoryScreen(
         containerColor = InventoryBackground,
         contentColor = InventoryInk,
         snackbarHost = { SnackbarHost(snackbar) },
-        bottomBar = { InventoryBottomBar(onFeature) }
+        bottomBar = { InventoryBottomBar(onFeature, selectedTab = "Inventory") }
     ) { padding ->
         LazyColumn(
             state = listState,
@@ -121,8 +159,8 @@ fun InventoryScreen(
                         Icon(Icons.Outlined.Search, "Search inventory", Modifier.size(28.dp))
                     }
                     Text("FridgeWise", fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
-                    IconButton(onClick = { onFeature("Notifications") }, modifier = Modifier.align(Alignment.CenterEnd)) {
-                        Icon(Icons.Outlined.NotificationsNone, "Notifications", Modifier.size(28.dp))
+                    IconButton(onClick = { onFeature("Settings") }, modifier = Modifier.align(Alignment.CenterEnd)) {
+                        Icon(Icons.Outlined.Settings, "Settings", Modifier.size(27.dp))
                     }
                 }
             }
@@ -175,23 +213,10 @@ fun InventoryScreen(
                 }
             }
             item {
-                Column(Modifier.padding(top = 4.dp, bottom = 7.dp)) {
-                    Row(Modifier.fillMaxWidth()) {
-                        listOf(null to "All", "freezer" to "Freezer", "fridge" to "Fridge").forEach { (value, label) ->
-                            val selected = value == state.location
-                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                                TextButton(onClick = { onLocation(value) }, modifier = Modifier.fillMaxWidth()) {
-                                    Text(label, fontSize = 16.sp, color = if (selected) InventoryGreen else InventoryMuted,
-                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
-                                }
-                                Box(Modifier.width(55.dp).height(3.dp).clip(CircleShape)
-                                    .background(if (selected) InventoryGreen else Color.Transparent))
-                            }
-                        }
-                        IconButton(onClick = onRefresh) { Icon(Icons.Outlined.Refresh, "Refresh inventory", tint = InventoryMuted) }
-                    }
-                    HorizontalDivider(color = Color(0xFFDFEAF2))
+                Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.End) {
+                    IconButton(onClick = onRefresh) { Icon(Icons.Outlined.Refresh, "Refresh inventory", tint = InventoryMuted) }
                 }
+                HorizontalDivider(color = Color(0xFFDFEAF2))
             }
             when {
                 state.isLoading -> item {
@@ -213,12 +238,12 @@ fun InventoryScreen(
                         Image(painterResource(R.drawable.auth_grocery_illustration), null,
                             Modifier.size(180.dp), contentScale = ContentScale.Fit)
                         Text("Add your items", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-                        if (state.query.isNotBlank() || state.location != null) {
-                            TextButton(onClick = { onSearch(""); onLocation(null) }) { Text("Clear filters") }
+                        if (state.query.isNotBlank()) {
+                            TextButton(onClick = { onSearch("") }) { Text("Clear search") }
                         }
                     }
                 }
-                else -> items(state.foods, key = { it.id }) { FoodRow(it) }
+                else -> items(state.foods, key = { it.id }) { food -> FoodRow(food, onUse = { onUseFood(food) }) }
             }
         }
     }
@@ -243,7 +268,7 @@ private fun StatCard(count: Int, label: String, image: Int, modifier: Modifier) 
 }
 
 @Composable
-private fun FoodRow(food: Food) {
+private fun FoodRow(food: Food, onUse: () -> Unit) {
     val status = food.status()
     val statusColor = when (status.urgency) {
         FoodUrgency.EXPIRED -> Color(0xFFFF1655)
@@ -262,14 +287,18 @@ private fun FoodRow(food: Food) {
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(food.quantityLabel, fontSize = 15.sp)
-            Text(when (food.location) { "freezer" -> "Freezer"; "fridge" -> "Fridge"; else -> "—" },
-                color = InventoryMuted, fontSize = 13.sp)
+            TextButton(onClick = onUse, enabled = status.urgency != FoodUrgency.EXPIRED,
+                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)) {
+                Text(if (status.urgency == FoodUrgency.EXPIRED) "Đã quá hạn" else "Dùng món này",
+                    color = if (status.urgency == FoodUrgency.EXPIRED) InventoryMuted else InventoryGreen,
+                    fontSize = 12.sp, maxLines = 1)
+            }
         }
     }
 }
 
 @Composable
-private fun InventoryBottomBar(onFeature: (String) -> Unit) {
+private fun InventoryBottomBar(onFeature: (String) -> Unit, selectedTab: String) {
     // Keep system insets outside the shared icon/label layout.
     Box(Modifier.fillMaxWidth().background(Color.White).navigationBarsPadding()) {
         Box(Modifier.fillMaxWidth().height(102.dp).background(InventoryBackground)) {
@@ -282,11 +311,156 @@ private fun InventoryBottomBar(onFeature: (String) -> Unit) {
                 BottomItem("Reels", R.drawable.ic_video, Modifier.weight(1f)) { onFeature("Reels") }
                 BottomItem("Favorite", R.drawable.ic_favorite, Modifier.weight(1f)) { onFeature("Favorite") }
                 BottomItem("Scan", R.drawable.ic_scan, Modifier.weight(1f), raised = true) { onFeature("Scan") }
-                BottomItem("Inventory", R.drawable.ic_inventory, Modifier.weight(1f), selected = true) {}
-                BottomItem("Setting", R.drawable.ic_settings, Modifier.weight(1f)) { onFeature("Settings") }
+                BottomItem("Inventory", R.drawable.ic_inventory, Modifier.weight(1f), selected = selectedTab == "Inventory") { onFeature("Inventory") }
+                BottomItem("Báo cáo", R.drawable.ic_report, Modifier.weight(1f), selected = selectedTab == "Report") { onFeature("Report") }
             }
         }
     }
+}
+
+@Composable
+private fun WeeklyReportScreen(
+    state: InventoryUiState,
+    onRefresh: () -> Unit,
+    onSignIn: () -> Unit,
+    onFeature: (String) -> Unit
+) {
+    val expiredFoods = remember(state.foods) { state.foods.filter { it.status().urgency == FoodUrgency.EXPIRED } }
+    val knownExpiredSpend = remember(expiredFoods) { expiredFoods.mapNotNull { it.estimatedValueVnd }.sum() }
+    val missingPriceCount = remember(expiredFoods) { expiredFoods.count { it.estimatedValueVnd == null } }
+    Scaffold(
+        containerColor = InventoryBackground,
+        contentColor = InventoryInk,
+        bottomBar = { InventoryBottomBar(onFeature, selectedTab = "Report") }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                Row(Modifier.fillMaxWidth().height(58.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Báo cáo", fontSize = 27.sp, fontWeight = FontWeight.Bold, color = InventoryInk)
+                        Text("Thực phẩm đã hết hạn", fontSize = 14.sp, color = InventoryMuted)
+                    }
+                    IconButton(onClick = onRefresh) { Icon(Icons.Outlined.Refresh, "Làm mới báo cáo", tint = InventoryMuted) }
+                    IconButton(onClick = { onFeature("Settings") }) { Icon(Icons.Outlined.Settings, "Cài đặt", tint = InventoryMuted) }
+                }
+            }
+            if (state.isLoading) {
+                item { Box(Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = InventoryGreen)
+                } }
+            } else if (state.error != null) {
+                item {
+                    Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(if (state.needsSignIn) "Phiên đăng nhập đã hết hạn" else "Không tải được dữ liệu kho",
+                                fontWeight = FontWeight.SemiBold, color = InventoryInk)
+                            Text(state.error, color = InventoryMuted, modifier = Modifier.padding(top = 6.dp))
+                            TextButton(onClick = if (state.needsSignIn) onSignIn else onRefresh) {
+                                Text(if (state.needsSignIn) "Đăng nhập" else "Thử lại")
+                            }
+                        }
+                    }
+                }
+            } else {
+                item {
+                    Surface(shape = RoundedCornerShape(22.dp), color = Color.White, modifier = Modifier.fillMaxWidth()) {
+                        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Box(Modifier.size(60.dp).clip(CircleShape).background(Color(0xFFE5F7EC)), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Outlined.DeleteOutline, null, Modifier.size(30.dp), tint = Color(0xFF08734D))
+                            }
+                            Column(Modifier.weight(1f)) {
+                                Text("Thực phẩm hết hạn", color = InventoryMuted, fontSize = 14.sp)
+                                Text("${expiredFoods.size}", fontSize = 32.sp, lineHeight = 38.sp,
+                                    fontWeight = FontWeight.Bold, color = InventoryInk)
+                            }
+                        }
+                    }
+                }
+                item {
+                    Surface(shape = RoundedCornerShape(22.dp), color = Color.White, modifier = Modifier.fillMaxWidth()) {
+                        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Box(Modifier.size(60.dp).clip(CircleShape).background(Color(0xFFFFF2D9)), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Outlined.Payments, null, Modifier.size(29.dp), tint = Color(0xFFAA6A00))
+                            }
+                            Column(Modifier.weight(1f)) {
+                                Text("Chi tiêu cho thực phẩm hết hạn", color = InventoryMuted, fontSize = 14.sp)
+                                Text(formatVnd(knownExpiredSpend), fontSize = 25.sp, lineHeight = 31.sp,
+                                    fontWeight = FontWeight.Bold, color = InventoryInk)
+                                Text(
+                                    if (missingPriceCount == 0) "Ước tính theo số lượng còn trong kho"
+                                    else "$missingPriceCount món chưa có giá; tổng chỉ gồm món đã ghi giá",
+                                    color = InventoryMuted, fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+                }
+                item {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Danh sách hết hạn", Modifier.weight(1f), fontSize = 19.sp, fontWeight = FontWeight.Bold, color = InventoryInk)
+                        Text("${expiredFoods.size}", color = InventoryMuted, fontSize = 13.sp)
+                    }
+                }
+                if (expiredFoods.isEmpty()) {
+                    item {
+                        Surface(shape = RoundedCornerShape(20.dp), color = Color.White, modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.fillMaxWidth().padding(vertical = 30.dp, horizontal = 22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Outlined.Eco, null, Modifier.size(38.dp), tint = InventoryGreen)
+                                Text("Chưa có thực phẩm hết hạn", Modifier.padding(top = 10.dp), fontWeight = FontWeight.SemiBold, color = InventoryInk)
+                            }
+                        }
+                    }
+                } else {
+                    items(expiredFoods, key = { "report-${it.id}" }) { food ->
+                        ExpiredFoodReportRow(food)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExpiredFoodReportRow(food: Food) {
+    Surface(shape = RoundedCornerShape(18.dp), color = Color.White, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFFF2F7F3)), contentAlignment = Alignment.Center) {
+                if (!food.imageUrl.isNullOrBlank()) {
+                    AsyncImage(food.imageUrl, food.name, Modifier.fillMaxSize().padding(4.dp))
+                } else {
+                    Icon(Icons.Outlined.Restaurant, null, Modifier.size(27.dp), tint = Color(0xFF16805B))
+                }
+            }
+            Column(Modifier.weight(1f)) {
+                Text(food.name, fontWeight = FontWeight.SemiBold, color = InventoryInk, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("HSD ${formatDate(food.expiryDate)}", color = InventoryMuted, fontSize = 12.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(food.quantityLabel, fontWeight = FontWeight.SemiBold, color = InventoryInk, fontSize = 14.sp)
+                Text(food.estimatedValueVnd?.let(::formatVnd) ?: "Chưa có giá", color = InventoryMuted, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+private fun formatVnd(amount: Long): String =
+    String.format(Locale("vi", "VN"), "%,d đ", amount).replace(',', '.')
+
+private fun formatDate(value: String?): String {
+    if (value.isNullOrBlank()) return "chưa rõ hạn"
+    return runCatching {
+        val input = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }
+        val output = java.text.SimpleDateFormat("dd/MM/yyyy", Locale.forLanguageTag("vi-VN"))
+        output.format(input.parse(value.take(10))!!)
+    }.getOrDefault(value.take(10))
 }
 
 @Composable
@@ -333,12 +507,12 @@ private fun InventoryPreview() {
             Food("3", "Duck frozen", 2.0, "kg", "freezer", purchasedAt = "2026-10-04"),
             Food("4", "Tomatoes", 0.5, "kg", "fridge", purchasedAt = "2026-10-12"),
             Food("5", "Gouda cheese", 150.0, "g", "fridge", purchasedAt = "2026-10-13")
-        )), {}, {}, {}, {}, {}) {}
+        )), {}, {}, {}, {}, onFeature = {})
     }
 }
 
 @Preview(showBackground = true, widthDp = 400, heightDp = 800)
 @Composable
 private fun EmptyInventoryPreview() {
-    MaterialTheme { InventoryScreen(InventoryUiState(isLoading = false), {}, {}, {}, {}, {}) {} }
+    MaterialTheme { InventoryScreen(InventoryUiState(isLoading = false), {}, {}, {}, {}, onFeature = {}) }
 }

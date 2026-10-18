@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { matchRecipes } from "../services/match.service.js";
 import { attachDetails, getRecipe, getReels } from "../services/recipes.service.js";
-import { fetchIngredients, fetchRecipeCards, searchRecipes } from "../repositories/recipes.repo.js";
+import { fetchIngredients, fetchRecipeCards, fetchRecipeIdsByMethod, fetchRecipeMethods, searchRecipes } from "../repositories/recipes.repo.js";
 import { fetchFoods } from "../repositories/fridge.repo.js";
 
 function sendErr(res: Response, e: unknown) {
@@ -21,13 +21,28 @@ export async function match(req: Request, res: Response) {
   try {
     const fridgeId = String(req.query.fridge_id ?? "");
     if (!fridgeId) return res.status(400).json({ error: "fridge_id required" });
-    const limit = parseLimit(req.query.limit, 10);
+    const limit = parseLimit(req.query.limit, 5);
     if (limit === undefined) return res.status(400).json({ error: "invalid limit" });
-    const ranked = await matchRecipes(await fetchFoods(fridgeId), { limit });
+    const method = typeof req.query.method === "string" ? req.query.method.trim() : "";
+    const ingredientId = typeof req.query.ingredient_id === "string" ? req.query.ingredient_id.trim() : "";
+    const [allRanked, methodIds] = await Promise.all([
+      matchRecipes(await fetchFoods(fridgeId)),
+      method ? fetchRecipeIdsByMethod(method) : Promise.resolve(null),
+    ]);
+    const allowed = methodIds ? new Set(methodIds) : null;
+    const ranked = allRanked.filter((row) =>
+      (!allowed || allowed.has(row.recipeId)) &&
+      (!ingredientId || row.matchedIngredients.some((ingredient) => ingredient.ingredientId === ingredientId)))
+      .slice(0, limit);
     res.json(await attachDetails(await fetchRecipeCards(ranked.map((r) => r.recipeId))));
   } catch (e) {
     sendErr(res, e);
   }
+}
+
+export async function methods(_req: Request, res: Response) {
+  try { res.json(await fetchRecipeMethods()); }
+  catch (e) { sendErr(res, e); }
 }
 
 export async function search(req: Request, res: Response) {

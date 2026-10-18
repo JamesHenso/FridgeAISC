@@ -56,9 +56,11 @@ describe("commitScan", () => {
 });
 
 describe("manual flow", () => {
-  it("create requires fridge_id + per-item ingredient_id", async () => {
+  it("create requires fridge_id and retains unrecognized OCR items for review", async () => {
     await assert.rejects(createScanWithItems("", [{ name: "X", ingredient_id: "i1" }], deps()), /fridge_id required/);
-    await assert.rejects(createScanWithItems("f1", [{ name: "X" }], deps()), /ingredient_id required/);
+    const unknown = deps();
+    await createScanWithItems("f1", [{ name: "X" }], unknown);
+    assert.equal((unknown.saved() as Array<{ ingredient_id: string | null }>)[0].ingredient_id, null);
     const d = deps();
     assert.deepEqual(await createScanWithItems("f1", [{ name: "Vịt", ingredient_id: "duck-id", qty_display: 1 }], d), { scanId: "s1", inserted: 1, items: [{ id: "i0", name: "Vịt" }] });
   });

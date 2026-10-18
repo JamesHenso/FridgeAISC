@@ -17,6 +17,11 @@ export interface ScanItemRow {
   purchased_at: string | null;
   expiry_date: string | null;
   location: string | null;
+  raw_name?: string | null;
+  unit_price_vnd?: number | null;
+  price_vnd?: number | null;
+  source_type?: string | null;
+  match_status?: string | null;
 }
 
 export interface NewScanItem {
@@ -29,6 +34,20 @@ export interface NewScanItem {
   purchased_at?: string | null;
   expiry_date?: string | null;
   location?: string | null;
+  raw_name?: string | null;
+  unit_price_vnd?: number | null;
+  price_vnd?: number | null;
+  source_type?: string | null;
+  match_status?: string | null;
+}
+
+export interface ScanMetadata {
+  source_type?: string | null;
+  merchant?: string | null;
+  receipt_total_vnd?: number | null;
+  receipt_subtotal_vnd?: number | null;
+  receipt_discount_vnd?: number | null;
+  receipt_line_total_vnd?: number | null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -40,8 +59,8 @@ export async function getScan(scanId: string, client: Client = supabaseAdmin): P
   return (data ?? null) as ScanRow | null;
 }
 
-export async function createScan(fridgeId: string, client: Client = supabaseAdmin): Promise<string> {
-  const { data, error } = await client.from("scans").insert({ fridge_id: fridgeId }).select("id").single();
+export async function createScan(fridgeId: string, metadata: ScanMetadata = {}, client: Client = supabaseAdmin): Promise<string> {
+  const { data, error } = await client.from("scans").insert({ fridge_id: fridgeId, ...metadata }).select("id").single();
   if (error) throw error;
   return (data as { id: string }).id;
 }
@@ -60,6 +79,11 @@ export async function addScanItems(scanId: string, items: ScanItemRow[], client:
     expiry_date: i.expiry_date ?? null,
     // ponytail: explicit null beats column DEFAULT 'fridge' so locate step stays mandatory
     location: i.location ?? null,
+    raw_name: i.raw_name ?? null,
+    unit_price_vnd: i.unit_price_vnd ?? null,
+    price_vnd: i.price_vnd ?? null,
+    source_type: i.source_type ?? null,
+    match_status: i.match_status ?? null,
   }));
   const { data, error } = await client.from("scan_items").insert(rows).select("id,name");
   if (error) throw error;
@@ -69,7 +93,7 @@ export async function addScanItems(scanId: string, items: ScanItemRow[], client:
 export async function fetchScanItems(scanId: string, client: Client = supabaseAdmin): Promise<ScanItemRow[]> {
   const { data, error } = await client
     .from("scan_items")
-    .select("id,name,ingredient_id,qty_display,unit_display,qty_base,base_unit,purchased_at,expiry_date,location")
+    .select("id,name,ingredient_id,qty_display,unit_display,qty_base,base_unit,purchased_at,expiry_date,location,raw_name,unit_price_vnd,price_vnd,source_type,match_status")
     .eq("scan_id", scanId);
   if (error) throw error;
   return (data ?? []) as ScanItemRow[];
@@ -96,6 +120,10 @@ export async function insertFoods(fridgeId: string, items: ScanItemRow[], client
     purchased_at: i.purchased_at ?? null,
     expiry_date: i.expiry_date,
     location: i.location ?? "fridge",
+    raw_name: i.raw_name ?? null,
+    unit_price_vnd: i.unit_price_vnd ?? null,
+    price_vnd: i.price_vnd ?? null,
+    source_type: i.source_type ?? null,
   }));
   const { error, count } = await client.from("foods").insert(rows, { count: "exact" });
   if (error) throw error;

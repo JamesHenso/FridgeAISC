@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -58,9 +59,10 @@ private val RecipeMuted = Color(0xFF62656D)
 private val RecipeBackground = Color(0xFFF7F8FA)
 
 @Composable
-fun RecipesRoute(token: String, fridgeId: String?, onBack: () -> Unit, onSignIn: () -> Unit) {
-    val model: RecipesViewModel = viewModel(key = "recipes-${token.hashCode()}-$fridgeId",
-        factory = viewModelFactory { initializer { RecipesViewModel(token, fridgeId) } })
+fun RecipesRoute(token: String, fridgeId: String?, onBack: () -> Unit, onSignIn: () -> Unit,
+    focusIngredientId: String? = null, focusIngredientName: String? = null) {
+    val model: RecipesViewModel = viewModel(key = "recipes-${token.hashCode()}-$fridgeId-$focusIngredientId",
+        factory = viewModelFactory { initializer { RecipesViewModel(token, fridgeId, focusIngredientId) } })
     val state by model.uiState.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(model) { model.refresh() }
@@ -76,7 +78,8 @@ fun RecipesRoute(token: String, fridgeId: String?, onBack: () -> Unit, onSignIn:
             .togetherWith(slideOutHorizontally(tween(320)) { if (forward) -it / 4 else it } + fadeOut(tween(180)))
     }, label = "recipe-detail-navigation") { id ->
         if (id == null) RecipesScreen(state, onBack, model::search, model::refresh, model::toggleFavorite,
-            onSignIn, snackbar, listState, onRecipe = { selectedRecipe = it })
+            onSignIn, snackbar, listState, onRecipe = { selectedRecipe = it }, onMethod = model::selectMethod,
+            focusIngredientName = focusIngredientName)
         else RecipeDetailRoute(token, id, fridgeId, id in state.favorites, state.favoritesReady,
             id in state.updatingFavorites, onFavorite = { model.toggleFavorite(id) },
             onBack = { selectedRecipe = null }, onSignIn = onSignIn, snackbar = snackbar)
@@ -93,7 +96,9 @@ fun RecipesScreen(
     onSignIn: () -> Unit,
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     listState: LazyListState = rememberLazyListState(),
-    onRecipe: (String) -> Unit = {}
+    onRecipe: (String) -> Unit = {},
+    onMethod: (String?) -> Unit = {},
+    focusIngredientName: String? = null
 ) {
     var searching by rememberSaveable { mutableStateOf(false) }
     Scaffold(containerColor = RecipeBackground, contentColor = Color(0xFF0C0D10),
@@ -109,16 +114,17 @@ fun RecipesScreen(
                     }
                     Row {
                         IconButton(onClick = onRefresh) { Icon(Icons.Outlined.Refresh, "Refresh recipes") }
-                        IconButton(onClick = {
-                            if (searching) onSearch("")
-                            searching = !searching
-                        }) { Icon(painterResource(R.drawable.ic_search), "Search recipes", Modifier.size(27.dp)) }
+                        if (focusIngredientName == null) IconButton(onClick = {
+                                if (searching) onSearch("")
+                                searching = !searching
+                            }) { Icon(painterResource(R.drawable.ic_search), "Search recipes", Modifier.size(27.dp)) }
                     }
                 }
             }
             item {
                 Column(Modifier.padding(start = 5.dp, end = 5.dp, bottom = 8.dp)) {
-                    Text("Let's cook it!", fontSize = 30.sp, lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(if (focusIngredientName == null) "Let's cook it!" else "Món với $focusIngredientName",
+                        fontSize = 27.sp, lineHeight = 36.sp, fontWeight = FontWeight.ExtraBold)
                     Text("Pick the best recipe", fontSize = 14.sp, color = RecipeMuted)
                     AnimatedVisibility(searching || state.query.isNotEmpty(), enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
                         OutlinedTextField(state.query, onSearch, Modifier.fillMaxWidth().padding(top = 14.dp),
@@ -128,6 +134,18 @@ fun RecipesScreen(
                             trailingIcon = { IconButton(onClick = { onSearch(""); searching = false }) {
                                 Icon(Icons.Outlined.Close, "Clear search")
                             } })
+                    }
+                }
+            }
+            if (state.cookingMethods.isNotEmpty()) item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 4.dp)) {
+                    item {
+                        FilterChip(selected = state.selectedMethod == null, onClick = { onMethod(null) },
+                            label = { Text("Tất cả") })
+                    }
+                    items(state.cookingMethods) { method ->
+                        FilterChip(selected = state.selectedMethod == method, onClick = { onMethod(method) },
+                            label = { Text(method) })
                     }
                 }
             }
