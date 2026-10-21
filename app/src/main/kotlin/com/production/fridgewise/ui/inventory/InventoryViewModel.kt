@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.production.fridgewise.data.repository.InventoryApiException
 import com.production.fridgewise.data.repository.InventoryRepository
+import com.production.fridgewise.domain.model.Food
+import com.production.fridgewise.domain.model.InventoryFilter
 import com.production.fridgewise.domain.model.InventoryStats
 import com.production.fridgewise.domain.model.InventoryUiState
 import kotlinx.coroutines.CancellationException
@@ -28,6 +30,10 @@ class InventoryViewModel(
 
     init { refresh() }
 
+    fun selectFilter(filter: InventoryFilter) {
+        _uiState.update { it.copy(filter = filter) }
+    }
+
     fun refresh() = load(reloadFridges = true)
     fun selectFridge(id: String) {
         if (id == _uiState.value.selectedFridgeId) return
@@ -41,6 +47,28 @@ class InventoryViewModel(
     fun search(query: String) {
         _uiState.update { it.copy(query = query) }
         load(debounce = true)
+    }
+
+    /** Xoá khỏi danh sách ngay; API lỗi thì trả món về đúng vị trí cũ. */
+    fun remove(food: Food, onError: (String) -> Unit = {}) {
+        val index = _uiState.value.foods.indexOfFirst { it.id == food.id }.coerceAtLeast(0)
+        _uiState.update { it.copy(foods = it.foods.filterNot { item -> item.id == food.id }) }
+        viewModelScope.launch {
+            try {
+                repository.deleteFood(accessToken, food.id)
+                val fridgeId = _uiState.value.selectedFridgeId ?: return@launch
+                val stats = repository.stats(accessToken, fridgeId)
+                _uiState.update { it.copy(stats = stats) }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                currentCoroutineContext().ensureActive()
+                _uiState.update { state ->
+                    state.copy(foods = state.foods.toMutableList().apply { add(index.coerceIn(0, size), food) })
+                }
+                onError(error.message ?: "Không thể xoá thực phẩm. Vui lòng thử lại.")
+            }
+        }
     }
 
     private fun load(reloadFridges: Boolean = false, debounce: Boolean = false) {

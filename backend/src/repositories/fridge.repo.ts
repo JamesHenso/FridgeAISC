@@ -34,10 +34,12 @@ export interface FoodRow {
   unit_price_vnd: number | null;
   price_vnd: number | null;
   image_url?: string | null;
+  category?: string | null;
+  source_type?: string | null;
 }
 
 export async function listFoods(fridgeId: string, location?: string, q?: string, client: Client = supabaseAdmin): Promise<FoodRow[]> {
-  const select = "id,name,ingredient_id,qty_display,unit_display,qty_base,base_unit,purchased_at,expiry_date,location,unit_price_vnd,price_vnd";
+  const select = "id,name,ingredient_id,qty_display,unit_display,qty_base,base_unit,purchased_at,expiry_date,location,unit_price_vnd,price_vnd,source_type";
   let qy = client
     .from("foods")
     .select(select)
@@ -53,12 +55,13 @@ export async function listFoods(fridgeId: string, location?: string, q?: string,
 
   // Ingredient thumbnails are optional; if the catalog query fails inventory still loads.
   const { data: ingredients, error: catalogError } = await client
-    .from("Ingredients").select("id,image_url").in("id", ingredientIds);
+    .from("Ingredients").select("id,image_url,category").in("id", ingredientIds);
   if (catalogError) return foods;
-  const catalog = new Map(((ingredients ?? []) as Array<{ id: string; image_url: string | null }>)
+  const catalog = new Map(((ingredients ?? []) as Array<{ id: string; image_url: string | null; category: string | null }>)
     .map((ingredient) => [ingredient.id, ingredient]));
   return foods.map((food) => ({
     ...food,
+    category: food.ingredient_id ? catalog.get(food.ingredient_id)?.category ?? null : null,
     image_url: food.ingredient_id ? catalog.get(food.ingredient_id)?.image_url ?? null : null,
   }));
 }
@@ -124,6 +127,17 @@ export interface FridgeListItem {
   name: string;
   invite_code: string | null;
   role: string | null;
+}
+
+export async function createFridge(ownerId: string, name: string, client: Client = supabaseAdmin): Promise<FridgeListItem> {
+  if (!name?.trim()) throw Object.assign(new Error("name required"), { status: 400 });
+  const { data, error } = await client
+    .from("fridges")
+    .insert({ owner_id: ownerId, name: name.trim() })
+    .select("id,name,invite_code")
+    .single();
+  if (error) throw error;
+  return { ...(data as { id: string; name: string; invite_code: string | null }), role: "owner" };
 }
 
 // Setting switch tu + Family: tu toi so huu + tham gia, kem role.

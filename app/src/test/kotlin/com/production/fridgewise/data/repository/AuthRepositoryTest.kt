@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
 import kotlinx.coroutines.runBlocking
 import com.google.gson.JsonParser
+import com.production.fridgewise.data.OAuthPkce
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -33,6 +34,32 @@ class AuthRepositoryTest {
             assertEquals("person@example.com", JsonParser.parseString(requests.single().body).asJsonObject.get("email").asString)
             assertEquals("password123", JsonParser.parseString(requests.single().body).asJsonObject.get("password").asString)
         }
+    }
+
+    @Test
+    fun completeOAuthExchangesPkceCodeAndReadsProviderName() = runBlocking {
+        withServer(200, """{"access_token":"oauth-token","user":{"id":"user-9","email":"person@example.com","user_metadata":{"name":"Nguyen Van A"}}}""") { repository, requests ->
+            assertTrue(repository.completeOAuth("the-code", "the-verifier").isSuccess)
+            assertEquals("oauth-token", repository.accessToken)
+            assertEquals("user-9", repository.userId)
+            assertEquals("Nguyen Van A", repository.displayName)
+            val request = requests.single()
+            assertEquals("/auth/v1/token?grant_type=pkce", request.path)
+            val body = JsonParser.parseString(request.body).asJsonObject
+            assertEquals("the-code", body.get("auth_code").asString)
+            assertEquals("the-verifier", body.get("code_verifier").asString)
+        }
+    }
+
+    @Test
+    fun oauthUrlCarriesProviderRedirectAndPkceChallenge() {
+        val repository = AuthRepository("https://ref.supabase.co/", "test-anon-key")
+        val url = repository.oauthUrl("Google", "the-verifier")
+        assertTrue(url.startsWith("https://ref.supabase.co/auth/v1/authorize?"))
+        assertTrue(url, url.contains("provider=google"))
+        assertTrue(url, url.contains("redirect_to=com.production.fridgewise%3A%2F%2Flogin-callback"))
+        assertTrue(url, url.contains("code_challenge_method=s256"))
+        assertTrue(url, url.contains("code_challenge=${OAuthPkce.challenge("the-verifier")}"))
     }
 
     @Test

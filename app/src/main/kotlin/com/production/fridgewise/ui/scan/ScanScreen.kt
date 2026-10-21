@@ -16,30 +16,65 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.view.CameraController
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
@@ -48,12 +83,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
-import androidx.compose.ui.layout.ContentScale
 import com.production.fridgewise.R
 import com.production.fridgewise.domain.model.ScanMode
+import com.production.fridgewise.ui.theme.FridgeWiseTheme
 import java.io.File
-
-private val ScanLime = Color(0xFFB9ED6A)
 
 @Composable
 fun ScanRoute(accessToken: String, fridgeId: String?, onClose: () -> Unit, onComplete: () -> Unit) {
@@ -174,66 +207,155 @@ private fun ScanScreen(
     onPermission: () -> Unit, onCapture: () -> Unit, onRetake: () -> Unit,
     camera: @Composable () -> Unit
 ) {
+    val colors = MaterialTheme.colorScheme
+    val accent = colors.primaryContainer
+    val onAccent = colors.onPrimaryContainer
     val reviewing = state.photoUri != null && state.labelCaptureTarget == null
     val product = state.mode == ScanMode.PRODUCT || state.labelCaptureTarget != null
-    Box(Modifier.fillMaxSize().background(Color(0xFF18241F))) {
+    Box(Modifier.fillMaxSize().background(colors.scrim)) {
         if (reviewing) AsyncImage(state.photoUri, "Ảnh cần quét", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
         else camera()
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = if (reviewing) 0.05f else 0.22f)))
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(Modifier.fillMaxWidth().height(62.dp), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween) {
-                IconButton(onClick = onClose, Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f))) {
-                    Icon(Icons.Outlined.Close, "Đóng máy quét", tint = Color.White, modifier = Modifier.size(21.dp))
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = if (reviewing) 0.05f else 0.28f)))
+        Column(
+            Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                Modifier.fillMaxWidth().height(64.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                IconButton(
+                    onClick = onClose,
+                    Modifier.size(48.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f))
+                ) {
+                    Icon(Icons.Outlined.Close, "Đóng máy quét", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
-                Text(if (state.labelCaptureTarget != null) "Quét HSD sản phẩm" else if (product) "Quét sản phẩm" else "Quét hóa đơn", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                IconToggleButton(checked = state.torch, onCheckedChange = { onTorch() }, enabled = ready && !reviewing,
-                    modifier = Modifier.size(44.dp).clip(CircleShape).background(if (state.torch) ScanLime else Color.White.copy(alpha = 0.14f))) {
-                    Icon(painterResource(R.drawable.ic_bolt), "Đèn flash", Modifier.size(23.dp), tint = if (state.torch) Color(0xFF24321D) else Color.White)
+                Text(
+                    if (state.labelCaptureTarget != null) "Quét HSD sản phẩm" else if (product) "Quét sản phẩm" else "Quét hóa đơn",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                IconToggleButton(
+                    checked = state.torch,
+                    onCheckedChange = { onTorch() },
+                    enabled = ready && !reviewing,
+                    modifier = Modifier.size(48.dp).clip(CircleShape)
+                        .background(if (state.torch) accent else Color.White.copy(alpha = 0.14f))
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_bolt), "Đèn flash",
+                        Modifier.size(22.dp), tint = if (state.torch) onAccent else Color.White
+                    )
                 }
             }
             if (state.photoUri == null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = !product, onClick = { onMode(ScanMode.RECEIPT) }, label = { Text("Hóa đơn") })
-                FilterChip(selected = product, onClick = { onMode(ScanMode.PRODUCT) }, label = { Text("Sản phẩm") })
+                ScanModeChip("Hóa đơn", !product, accent, onAccent) { onMode(ScanMode.RECEIPT) }
+                ScanModeChip("Sản phẩm", product, accent, onAccent) { onMode(ScanMode.PRODUCT) }
             }
-            Spacer(Modifier.height(22.dp))
-            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 22.dp), contentAlignment = Alignment.Center) {
+            Spacer(Modifier.height(24.dp))
+            Box(
+                Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 if (!reviewing) {
-                    Box(Modifier.fillMaxSize().border(2.dp, ScanLime, RoundedCornerShape(18.dp)))
-                    Surface(shape = CircleShape, color = ScanLime, modifier = Modifier.align(Alignment.TopCenter).offset(y = (-13).dp)) {
-                        Row(Modifier.padding(horizontal = 13.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(painterResource(R.drawable.ic_scan), null, Modifier.size(13.dp), tint = Color(0xFF24321D))
-                            Text(if (product) "GIỮ NHÃN TRONG KHUNG" else "GIỮ HÓA ĐƠN TRONG KHUNG", color = Color(0xFF24321D), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    Box(Modifier.fillMaxSize().border(2.dp, accent, MaterialTheme.shapes.extraLarge))
+                    Surface(
+                        shape = CircleShape,
+                        color = accent,
+                        contentColor = onAccent,
+                        modifier = Modifier.align(Alignment.TopCenter).offset(y = (-13).dp)
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(painterResource(R.drawable.ic_scan), null, Modifier.size(14.dp))
+                            Text(
+                                if (product) "GIỮ NHÃN TRONG KHUNG" else "GIỮ HÓA ĐƠN TRONG KHUNG",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
-                    if (permission && ready && state.error == null) ScanLine()
-                    if (!permission) Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Cho phép truy cập camera hoặc chọn ảnh từ thư viện.", color = Color.White, textAlign = TextAlign.Center)
-                        TextButton(onClick = onPermission) { Text("Mở cài đặt camera", color = ScanLime) }
-                    } else if (!ready && state.error == null) CircularProgressIndicator(color = ScanLime)
+                    if (permission && ready && state.error == null) ScanLine(accent)
+                    if (!permission) Column(
+                        Modifier.padding(24.dp).clip(MaterialTheme.shapes.large)
+                            .background(Color.Black.copy(alpha = 0.55f)).padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "Cho phép truy cập camera hoặc chọn ảnh từ thư viện.",
+                            color = Color.White,
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        TextButton(onClick = onPermission) { Text("Mở cài đặt camera", color = accent) }
+                    }
+                    else if (!ready && state.error == null) CircularProgressIndicator(color = accent)
                 }
-                state.error?.let { Text(it, color = Color.White, textAlign = TextAlign.Center,
-                    modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(Color.Black.copy(alpha = 0.65f)).padding(16.dp)) }
+                state.error?.let {
+                    Text(
+                        it,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.clip(MaterialTheme.shapes.large)
+                            .background(Color.Black.copy(alpha = 0.7f)).padding(16.dp)
+                    )
+                }
             }
-            Surface(shape = CircleShape, color = Color(0xCC253C34), modifier = Modifier.padding(top = 10.dp)) {
-                Text(if (reviewing) "Ảnh đã sẵn sàng • Kiểm tra độ rõ" else if (product) "Chụp rõ tên, khối lượng, giá và HSD" else "Đặt hóa đơn phẳng, tránh bóng đổ",
-                    color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 15.dp, vertical = 9.dp))
+            Surface(
+                shape = CircleShape,
+                color = Color.Black.copy(alpha = 0.55f),
+                modifier = Modifier.padding(top = 12.dp)
+            ) {
+                Text(
+                    if (reviewing) "Ảnh đã sẵn sàng • Kiểm tra độ rõ"
+                    else if (product) "Chụp rõ tên, khối lượng, giá và HSD"
+                    else "Đặt hóa đơn phẳng, tránh bóng đổ",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                )
             }
-            Box(Modifier.fillMaxWidth().height(102.dp), contentAlignment = Alignment.Center) {
-                IconButton(onClick = onGallery, enabled = !state.isCapturing,
-                    modifier = Modifier.align(Alignment.CenterStart).size(48.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f))) {
+            Box(Modifier.fillMaxWidth().height(104.dp), contentAlignment = Alignment.Center) {
+                IconButton(
+                    onClick = onGallery,
+                    enabled = !state.isCapturing,
+                    modifier = Modifier.align(Alignment.CenterStart).size(48.dp).clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.14f))
+                ) {
                     Icon(painterResource(R.drawable.ic_picture), "Chọn ảnh", Modifier.size(24.dp), tint = Color.White)
                 }
-                if (reviewing) Button(onClick = onRetake, colors = ButtonDefaults.buttonColors(containerColor = ScanLime, contentColor = Color(0xFF24321D))) {
-                    Text("Chụp lại")
-                } else Surface(onClick = onCapture, enabled = ready && !state.isCapturing, shape = CircleShape, color = Color.Transparent,
-                    modifier = Modifier.size(70.dp).border(3.dp, Color.White, CircleShape),
-                    contentColor = Color.White) {
-                    Box(Modifier.padding(7.dp).clip(CircleShape).background(if (ready) Color.White else Color.White.copy(alpha = 0.35f)),
-                        contentAlignment = Alignment.Center) {
-                        if (state.isCapturing) CircularProgressIndicator(Modifier.size(30.dp), color = Color(0xFF253C34), strokeWidth = 2.dp)
+                if (reviewing) {
+                    Button(
+                        onClick = onRetake,
+                        colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = onAccent),
+                        shape = MaterialTheme.shapes.large
+                    ) { Text("Chụp lại") }
+                } else {
+                    Surface(
+                        onClick = onCapture,
+                        enabled = ready && !state.isCapturing,
+                        shape = CircleShape,
+                        color = Color.Transparent,
+                        modifier = Modifier.size(72.dp).border(3.dp, Color.White, CircleShape),
+                        contentColor = Color.White
+                    ) {
+                        Box(
+                            Modifier.padding(8.dp).clip(CircleShape)
+                                .background(if (ready) Color.White else Color.White.copy(alpha = 0.35f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (state.isCapturing) CircularProgressIndicator(
+                                Modifier.size(30.dp),
+                                color = colors.scrim,
+                                strokeWidth = 2.dp
+                            )
+                        }
                     }
                 }
             }
@@ -242,14 +364,45 @@ private fun ScanScreen(
 }
 
 @Composable
-private fun ScanLine() {
+private fun ScanModeChip(
+    label: String,
+    selected: Boolean,
+    accent: Color,
+    onAccent: Color,
+    onClick: () -> Unit
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, style = MaterialTheme.typography.labelMedium) },
+        shape = CircleShape,
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = accent,
+            selectedLabelColor = onAccent,
+            containerColor = Color.Black.copy(alpha = 0.4f),
+            labelColor = Color.White
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = selected,
+            borderColor = Color.White.copy(alpha = 0.35f),
+            selectedBorderColor = Color.Transparent
+        )
+    )
+}
+
+@Composable
+private fun ScanLine(accent: Color) {
     val transition = rememberInfiniteTransition(label = "receipt-scan")
-    val progress by transition.animateFloat(0.08f, 0.92f,
-        infiniteRepeatable(tween(2200, easing = LinearEasing), RepeatMode.Reverse), label = "scan-line-position")
+    val progress by transition.animateFloat(
+        0.08f, 0.92f,
+        infiniteRepeatable(tween(2200, easing = LinearEasing), RepeatMode.Reverse),
+        label = "scan-line-position"
+    )
     Canvas(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 16.dp)) {
         val y = size.height * progress
-        drawLine(ScanLime.copy(alpha = 0.15f), Offset(0f, y), Offset(size.width, y), strokeWidth = 10.dp.toPx())
-        drawLine(ScanLime, Offset(0f, y), Offset(size.width, y), strokeWidth = 2.dp.toPx())
+        drawLine(accent.copy(alpha = 0.15f), Offset(0f, y), Offset(size.width, y), strokeWidth = 10.dp.toPx())
+        drawLine(accent, Offset(0f, y), Offset(size.width, y), strokeWidth = 2.dp.toPx())
     }
 }
 
@@ -262,7 +415,7 @@ private tailrec fun Context.activity(): Activity? = when (this) {
 @Preview(showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
 private fun ScanPreview() {
-    MaterialTheme {
+    FridgeWiseTheme {
         ScanScreen(ScanUiState(), permission = true, ready = true,
             onClose = {}, onMode = {}, onTorch = {}, onGallery = {}, onPermission = {},
             onCapture = {}, onRetake = {}, camera = {})

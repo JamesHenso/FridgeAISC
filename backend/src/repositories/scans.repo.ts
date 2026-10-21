@@ -65,7 +65,7 @@ export async function createScan(fridgeId: string, metadata: ScanMetadata = {}, 
   return (data as { id: string }).id;
 }
 
-export async function addScanItems(scanId: string, items: ScanItemRow[], client: Client = supabaseAdmin): Promise<Array<{ id: string; name: string }>> {
+export async function addScanItems(scanId: string, items: ScanItemRow[], client: Client = supabaseAdmin): Promise<Array<{ id: string; name: string; image_url?: string | null }>> {
   if (items.length === 0) return [];
   const rows = items.map((i) => ({
     scan_id: scanId,
@@ -85,9 +85,16 @@ export async function addScanItems(scanId: string, items: ScanItemRow[], client:
     source_type: i.source_type ?? null,
     match_status: i.match_status ?? null,
   }));
-  const { data, error } = await client.from("scan_items").insert(rows).select("id,name");
+  const { data, error } = await client.from("scan_items").insert(rows).select("id,name,ingredient_id");
   if (error) throw error;
-  return (data ?? []) as Array<{ id: string; name: string }>;
+  const saved = (data ?? []) as Array<{ id: string; name: string; ingredient_id: string | null }>;
+  const ids = [...new Set(saved.map(row => row.ingredient_id).filter((id): id is string => Boolean(id)))];
+  if (!ids.length) return saved;
+  // Icons are optional; an icon lookup must never make a successfully created draft fail.
+  const { data: catalog, error: iconError } = await client.from("Ingredients").select("id,image_url").in("id", ids);
+  if (iconError) return saved;
+  const icons = new Map((catalog ?? []).map((row: { id: string; image_url: string | null }) => [row.id, row.image_url]));
+  return saved.map(row => ({ ...row, image_url: row.ingredient_id ? (icons.get(row.ingredient_id) as string | null) ?? null : null }));
 }
 
 export async function fetchScanItems(scanId: string, client: Client = supabaseAdmin): Promise<ScanItemRow[]> {

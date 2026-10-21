@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.MyApp" parent="android:Theme.Material.Light.NoActionBar" />
+    <color name="fridge_background">#FBF9F3</color>
+    <style name="Theme.MyApp" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/fridge_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowActionModeOverlay">true</item>
+    </style>
 </resources>

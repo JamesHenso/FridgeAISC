@@ -61,13 +61,13 @@ describe("getRecipe", () => {
     async () => recipe,
     async () => detail,
     async () => rows,
-    async () => [{ id: "e1", name: "Trứng" }],
+    async () => [{ id: "e1", name: "Trứng", image_url: "/assets/gia_cam.webp", category: "Trứng" }],
   ] as unknown as [never, never, never, never];
   it("assembles info + ingredients (catalog name wins) + steps", async () => {
     const got = await getRecipe("r1", ...deps);
     assert.equal(got.info.name, "Com chien");
     assert.deepEqual(got.ingredients, [
-      { ingredientId: "e1", name: "Trứng", quantity: "3", unit: "qua", qty_base: null, base_unit: null },
+      { ingredientId: "e1", name: "Trứng", quantity: "3", unit: "qua", qty_base: null, base_unit: null, image_url: "/assets/gia_cam.webp", category: "Trứng" },
     ]);
     assert.equal(got.detail?.time, 30);
   });

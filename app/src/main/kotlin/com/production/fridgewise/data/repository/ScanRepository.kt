@@ -87,7 +87,7 @@ class ScanRepository(
         val mapped = items.map { item ->
             val row = saved[item.name]?.takeIf { it.isNotEmpty() }?.removeAt(0)
                 ?: throw IOException("Không nhận được mã thực phẩm trong bản nháp.")
-            item.copy(id = row.get("id").asString)
+            item.copy(id = row.get("id").asString, imageUrl = com.production.fridgewise.data.apiImageUrl(row.string("image_url"), backendUrl))
         }
         return ReceiptDraft(result.get("scanId").asString, mapped)
     }

@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { requireAuth } from "../middlewares/auth.js";
-import { foods, join, members, myFridges, patchFood, removeFood, rename, stats } from "../controllers/fridges.controller.js";
+import { create, foods, join, members, myFridges, patchFood, removeFood, rename, stats } from "../controllers/fridges.controller.js";
 
 const r = Router();
 r.use(requireAuth);
 r.get("/", myFridges);
+r.post("/", create);
 r.post("/join", join);
 r.get("/:id/members", members);
 r.get("/:id/foods", foods);

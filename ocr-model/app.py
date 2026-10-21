@@ -19,6 +19,18 @@ AZURE_KEY = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_KEY")
 if not AZURE_ENDPOINT or not AZURE_KEY:
     raise RuntimeError("Missing Azure Document Intelligence configuration in .env")
 
+MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+SUPPORTED_SIGNATURES = (b"\xff\xd8\xff", b"\x89PNG\r\n\x1a\n", b"%PDF")
+
+
+def upload_problem(image: bytes) -> str | None:
+    """Azure returns a raw InvalidRequest blob for oversized or unsupported files; say it plainly."""
+    if len(image) > MAX_UPLOAD_BYTES:
+        return "Image is larger than the 4 MB Azure Document Intelligence limit."
+    if not image.startswith(SUPPORTED_SIGNATURES):
+        return "File content is not a JPG, PNG, or PDF image."
+    return None
+
 client = DocumentIntelligenceClient(
     endpoint=AZURE_ENDPOINT, credential=AzureKeyCredential(AZURE_KEY)
 )
@@ -36,6 +48,9 @@ async def analyze_upload(file: UploadFile, model_id: str):
     image = await file.read()
     if not image:
         raise HTTPException(400, "Uploaded file is empty.")
+    problem = upload_problem(image)
+    if problem:
+        raise HTTPException(400, problem)
 
     def analyze():
         return client.begin_analyze_document(model_id=model_id, body=io.BytesIO(image)).result()

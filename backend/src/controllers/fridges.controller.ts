@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { deleteFood, joinFridgeByCode, listFoods, listFridges, listMembers, inventoryStats, renameFridge, updateFood } from "../repositories/fridge.repo.js";
+import { createFridge, deleteFood, joinFridgeByCode, listFoods, listFridges, listMembers, inventoryStats, renameFridge, updateFood } from "../repositories/fridge.repo.js";
 
 function sendErr(res: Response, e: unknown) {
   const err = e as Error & { status?: number };
@@ -10,6 +10,15 @@ export async function myFridges(req: Request, res: Response) {
   try {
     if (!req.user?.id) return res.status(401).json({ error: "missing user" });
     res.json(await listFridges(req.user.id));
+  } catch (e) {
+    sendErr(res, e);
+  }
+}
+
+export async function create(req: Request, res: Response) {
+  try {
+    if (!req.user?.id) return res.status(401).json({ error: "missing user" });
+    res.status(201).json(await createFridge(req.user.id, String(req.body?.name ?? "")));
   } catch (e) {
     sendErr(res, e);
   }

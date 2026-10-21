@@ -1,6 +1,7 @@
 package com.production.fridgewise.data.repository
 
 import com.google.gson.JsonParser
+import com.production.fridgewise.domain.model.ScanMode
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
 import kotlinx.coroutines.runBlocking
@@ -27,9 +28,9 @@ class ScanRepositoryTest {
         try {
             val url = "http://127.0.0.1:${server.address.port}"
             val repo = ScanRepository(url, url)
-            val items = repo.recognize("image/png") { "receipt-bytes".byteInputStream() }
-            assertEquals(0.5, items.single().quantity)
-            assertNull(items.single().expiryDate)
+            val items = repo.recognize(ScanMode.RECEIPT, "image/png") { "receipt-bytes".byteInputStream() }
+            assertEquals(0.5, items.items.single().quantity)
+            assertNull(items.items.single().expiryDate)
             assertTrue(requests[0].third.contains("name=\"file\""))
             assertTrue(requests[0].third.contains("Content-Type: image/png"))
             assertTrue(requests[0].third.contains("receipt-bytes"))
@@ -70,7 +71,7 @@ class ScanRepositoryTest {
         try {
             val url = "http://127.0.0.1:${server.address.port}"
             val repository = ScanRepository(url, url)
-            val recognized = repository.recognize("image/jpeg") { "receipt".byteInputStream() }
+            val recognized = repository.recognize(ScanMode.RECEIPT, "image/jpeg") { "receipt".byteInputStream() }
             val draft = repository.createDraft("token", "fridge", recognized)
             assertEquals(listOf("0.732 kg", "1 gói"), draft.items.map { it.quantityLabel })
             val sent = JsonParser.parseString(submitted).asJsonObject.getAsJsonArray("items")
@@ -103,7 +104,7 @@ class ScanRepositoryTest {
         } finally { server.stop(0) }
     }
     @Test fun rejectsUnsupportedImagesBeforeOpeningStream() = runBlocking {
-        val result = runCatching { ScanRepository("", "").recognize("image/webp") { error("Must not open") } }
+        val result = runCatching { ScanRepository("", "").recognize(ScanMode.RECEIPT, "image/webp") { error("Must not open") } }
         assertTrue(result.exceptionOrNull() is IllegalArgumentException)
         assertTrue(result.exceptionOrNull()!!.message!!.contains("JPG"))
     }

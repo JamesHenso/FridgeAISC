@@ -1,5 +1,7 @@
 package com.production.fridgewise.ui.auth
 
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -9,8 +11,9 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,8 +21,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.saveable.rememberSaveable
+import com.production.fridgewise.data.OAuthCallback
 import com.production.fridgewise.ui.inventory.InventoryRoute
 import com.production.fridgewise.navigation.AuthDestination
 
@@ -29,6 +36,7 @@ fun AuthNavigation(
     authViewModel: AuthViewModel = viewModel()
 ) {
     val state by authViewModel.uiState.collectAsState()
+    val oauthResult by OAuthCallback.result.collectAsState()
     val context = LocalContext.current
     var destination by rememberSaveable { mutableStateOf(AuthDestination.SPLASH) }
     var direction by remember { mutableStateOf(1) }
@@ -39,81 +47,103 @@ fun AuthNavigation(
         authViewModel.clearError()
     }
 
-    MaterialTheme {
-        AnimatedContent(
-            targetState = destination,
-            modifier = Modifier.fillMaxSize(),
-            transitionSpec = {
-                (slideInHorizontally(
-                    animationSpec = tween(420),
-                    initialOffsetX = { fullWidth -> if (direction > 0) fullWidth / 3 else -fullWidth / 3 }
-                ) + fadeIn(animationSpec = tween(320)))
-                    .togetherWith(
-                        slideOutHorizontally(
-                            animationSpec = tween(360),
-                            targetOffsetX = { fullWidth -> if (direction > 0) -fullWidth / 4 else fullWidth / 4 }
-                        ) + fadeOut(animationSpec = tween(260))
-                    )
-            },
-            label = "auth-screen-transition"
-        ) { screen ->
-            when (screen) {
-                AuthDestination.INVENTORY -> {
-                    val token = authViewModel.accessToken
-                    if (token != null) {
-                        InventoryRoute(token, onSignIn = { navigate(AuthDestination.SIGN_IN) })
-                    } else {
-                        androidx.compose.runtime.LaunchedEffect(Unit) { navigate(AuthDestination.SIGN_IN) }
-                    }
-                }
-                AuthDestination.SPLASH -> SplashScreen(
-                    onFinished = { navigate(AuthDestination.SIGN_IN) },
-                    illustrationResId = illustrationResId
-                )
-                AuthDestination.SIGN_IN -> SignInScreen(
-                    state = state,
-                    onEmailChange = authViewModel::updateEmail,
-                    onPasswordChange = authViewModel::updatePassword,
-                    onTogglePassword = authViewModel::togglePasswordVisibility,
-                    onRememberChange = authViewModel::toggleRememberMe,
-                    onSignIn = {
-                        authViewModel.signIn {
-                            navigate(AuthDestination.INVENTORY)
-                        }
-                    },
-                    onSignUp = { navigate(AuthDestination.SIGN_UP) },
-                    onForgotPassword = {
-                        Toast.makeText(context, "Hãy kết nối chức năng khôi phục mật khẩu với Auth.", Toast.LENGTH_LONG).show()
-                    },
-                    onSocialClick = {
-                        Toast.makeText(context, "$it chưa được cấu hình.", Toast.LENGTH_SHORT).show()
-                    }
-                )
-                AuthDestination.SIGN_UP -> SignUpScreen(
-                    state = state,
-                    onEmailChange = authViewModel::updateEmail,
-                    onPasswordChange = authViewModel::updatePassword,
-                    onConfirmPasswordChange = authViewModel::updateConfirmPassword,
-                    onTogglePassword = authViewModel::togglePasswordVisibility,
-                    onToggleConfirmPassword = authViewModel::toggleConfirmPasswordVisibility,
-                    onTermsChange = authViewModel::toggleTerms,
-                    onSignUp = {
-                        authViewModel.signUp {
-                            Toast.makeText(context, "Đăng ký thành công", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    onSignIn = { navigate(AuthDestination.SIGN_IN) },
-                    onSocialClick = {
-                        Toast.makeText(context, "$it chưa được cấu hình.", Toast.LENGTH_SHORT).show()
-                    },
-                    onTermsClick = {
-                        Toast.makeText(context, "Thêm màn hình điều khoản tại đây.", Toast.LENGTH_SHORT).show()
-                    },
-                    onPrivacyClick = {
-                        Toast.makeText(context, "Thêm màn hình chính sách bảo mật tại đây.", Toast.LENGTH_SHORT).show()
-                    }
-                )
+    val openBrowser: (String) -> Unit = { url ->
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    }
+
+    LaunchedEffect(oauthResult) {
+        if (oauthResult != null) {
+            authViewModel.completeSocialSignIn {
+                Toast.makeText(context, "Đăng nhập thành công", Toast.LENGTH_SHORT).show()
+                navigate(AuthDestination.INVENTORY)
             }
+        }
+    }
+
+    // Coming back without a callback means the user closed the browser: stop the spinner.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) authViewModel.onAppResumed()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    AnimatedContent(
+        targetState = destination,
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = {
+            (slideInHorizontally(
+                animationSpec = tween(420),
+                initialOffsetX = { fullWidth -> if (direction > 0) fullWidth / 3 else -fullWidth / 3 }
+            ) + fadeIn(animationSpec = tween(320)))
+                .togetherWith(
+                    slideOutHorizontally(
+                        animationSpec = tween(360),
+                        targetOffsetX = { fullWidth -> if (direction > 0) -fullWidth / 4 else fullWidth / 4 }
+                    ) + fadeOut(animationSpec = tween(260))
+                )
+        },
+        label = "auth-screen-transition"
+    ) { screen ->
+        when (screen) {
+            AuthDestination.INVENTORY -> {
+                val token = authViewModel.accessToken
+                if (token != null) {
+                    InventoryRoute(token, userId = authViewModel.userId, onSignIn = {
+                        com.production.fridgewise.notifications.ExpiryNotifications.clearAccount(context)
+                        navigate(AuthDestination.SIGN_IN)
+                    })
+                } else {
+                    androidx.compose.runtime.LaunchedEffect(Unit) { navigate(AuthDestination.SIGN_IN) }
+                }
+            }
+            AuthDestination.SPLASH -> SplashScreen(
+                onFinished = { navigate(AuthDestination.SIGN_IN) },
+                illustrationResId = illustrationResId
+            )
+            AuthDestination.SIGN_IN -> SignInScreen(
+                state = state,
+                onEmailChange = authViewModel::updateEmail,
+                onPasswordChange = authViewModel::updatePassword,
+                onTogglePassword = authViewModel::togglePasswordVisibility,
+                onRememberChange = authViewModel::toggleRememberMe,
+                onSignIn = {
+                    authViewModel.signIn {
+                        navigate(AuthDestination.INVENTORY)
+                    }
+                },
+                onSignUp = { navigate(AuthDestination.SIGN_UP) },
+                onForgotPassword = {
+                    Toast.makeText(context, "Hãy kết nối chức năng khôi phục mật khẩu với Auth.", Toast.LENGTH_LONG).show()
+                },
+                onSocialClick = { provider -> authViewModel.signInWithProvider(provider, openBrowser) }
+            )
+            AuthDestination.SIGN_UP -> SignUpScreen(
+                state = state,
+                onNameChange = authViewModel::updateName,
+                onEmailChange = authViewModel::updateEmail,
+                onPasswordChange = authViewModel::updatePassword,
+                onConfirmPasswordChange = authViewModel::updateConfirmPassword,
+                onTogglePassword = authViewModel::togglePasswordVisibility,
+                onToggleConfirmPassword = authViewModel::toggleConfirmPasswordVisibility,
+                onTermsChange = authViewModel::toggleTerms,
+                onSignUp = {
+                    authViewModel.signUp {
+                        Toast.makeText(context, "Đăng ký thành công", Toast.LENGTH_SHORT).show()
+                        navigate(AuthDestination.INVENTORY)
+                    }
+                },
+                onSignIn = { navigate(AuthDestination.SIGN_IN) },
+                onSocialClick = { provider -> authViewModel.signInWithProvider(provider, openBrowser) },
+                onTermsClick = {
+                    Toast.makeText(context, "Thêm màn hình điều khoản tại đây.", Toast.LENGTH_SHORT).show()
+                },
+                onPrivacyClick = {
+                    Toast.makeText(context, "Thêm màn hình chính sách bảo mật tại đây.", Toast.LENGTH_SHORT).show()
+                }
+            )
         }
     }
 }
