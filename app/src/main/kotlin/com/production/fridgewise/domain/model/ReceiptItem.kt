@@ -15,7 +15,8 @@ data class ReceiptItem(
     val priceVnd: Long? = null,
     val sourceType: String? = null,
     val matchStatus: String? = null,
-    val candidates: List<IngredientCandidate> = emptyList()
+    val candidates: List<IngredientCandidate> = emptyList(),
+    val imageUrl: String? = null
 ) {
     val quantityLabel: String get() = quantity?.let {
         "${BigDecimal.valueOf(it).stripTrailingZeros().toPlainString()} ${unit.orEmpty()}".trim()

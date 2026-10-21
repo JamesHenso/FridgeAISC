@@ -9,6 +9,19 @@ import java.util.TimeZone
 data class Fridge(val id: String, val name: String)
 data class InventoryStats(val inStock: Int = 0, val useToday: Int = 0, val useSoon: Int = 0, val cleanOut: Int = 0)
 enum class FoodUrgency { NORMAL, SOON, TODAY, EXPIRED }
+enum class InventoryFilter(val label: String) {
+    STOCK("Stock"), TODAY("Today"), SOON("Soon"), CLEAN("Clean");
+
+    fun matches(food: Food, today: String = inventoryToday()): Boolean {
+        val urgency = food.status(today).urgency
+        return when (this) {
+            STOCK -> urgency != FoodUrgency.EXPIRED
+            TODAY -> urgency == FoodUrgency.TODAY
+            SOON -> urgency == FoodUrgency.SOON
+            CLEAN -> urgency == FoodUrgency.EXPIRED
+        }
+    }
+}
 data class FoodStatus(val text: String, val urgency: FoodUrgency = FoodUrgency.NORMAL)
 data class Food(
     val id: String,
@@ -21,7 +34,9 @@ data class Food(
     val ingredientId: String? = null,
     val imageUrl: String? = null,
     val priceVnd: Long? = null,
-    val unitPriceVnd: Long? = null
+    val unitPriceVnd: Long? = null,
+    val category: String? = null,
+    val sourceType: String? = null
 ) {
     // Prefer unit price × current quantity so partially used stock is not counted at its original full price.
     val estimatedValueVnd: Long? get() = when {
@@ -69,6 +84,7 @@ data class InventoryUiState(
     val foods: List<Food> = emptyList(),
     val location: String? = null,
     val query: String = "",
+    val filter: InventoryFilter = InventoryFilter.STOCK,
     val isLoading: Boolean = true,
     val error: String? = null,
     val needsSignIn: Boolean = false

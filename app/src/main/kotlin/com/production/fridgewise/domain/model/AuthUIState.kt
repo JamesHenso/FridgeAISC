@@ -2,6 +2,7 @@ package com.production.fridgewise.domain.model
 
 data class AuthUiState(
     val email: String = "",
+    val name: String = "",
     val password: String = "",
     val confirmPassword: String = "",
     val rememberMe: Boolean = true,

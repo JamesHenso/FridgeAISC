@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Local development backend uses HTTP; release builds retain HTTPS-only policy. -->
-    <application android:usesCleartextTraffic="true" />
+    <application android:usesCleartextTraffic="true">
+        <!-- adb shell am broadcast -n com.production.fridgewise/.debug.TestReminderReceiver -->
+        <receiver
+            android:name=".debug.TestReminderReceiver"
+            android:exported="true" />
+    </application>
 </manifest>

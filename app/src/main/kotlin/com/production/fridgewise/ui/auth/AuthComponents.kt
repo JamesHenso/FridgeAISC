@@ -1,5 +1,10 @@
 package com.production.fridgewise.ui.auth
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -10,19 +15,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,22 +40,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.production.fridgewise.R
-
-internal val FridgeCream = Color(0xFFF7F5EB)
-internal val FridgeGreen = Color(0xFF064E3B)
-internal val FridgeOrange = Color(0xFFEF8200)
-internal val FridgeText = Color(0xFF252525)
-internal val FridgeMuted = Color(0xFF858585)
-internal val FridgeBorder = Color(0xFFECE8DE)
 
 @Composable
 fun FridgeWiseLogo(modifier: Modifier = Modifier, centered: Boolean = true) {
@@ -58,8 +55,18 @@ fun FridgeWiseLogo(modifier: Modifier = Modifier, centered: Boolean = true) {
         horizontalArrangement = if (centered) Arrangement.Center else Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Fridge", color = FridgeOrange, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Wise", color = FridgeGreen, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "Fridge",
+            color = MaterialTheme.colorScheme.tertiary,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.ExtraBold
+        )
+        Text(
+            "Wise",
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.ExtraBold
+        )
     }
 }
 
@@ -72,21 +79,30 @@ fun AuthTextField(
     passwordVisible: Boolean = false,
     onTogglePassword: (() -> Unit)? = null,
     email: Boolean = false,
+    name: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val colors = MaterialTheme.colorScheme
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
         singleLine = true,
-        shape = RoundedCornerShape(15.dp),
-        placeholder = { Text(label, color = FridgeMuted, fontSize = 13.sp) },
+        shape = MaterialTheme.shapes.medium,
+        textStyle = MaterialTheme.typography.bodyLarge,
+        placeholder = {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant
+            )
+        },
         leadingIcon = {
             Icon(
-                imageVector = if (email) Icons.Default.Email else Icons.Default.Lock,
+                imageVector = if (name) Icons.Default.Person else if (email) Icons.Default.Email else Icons.Default.Lock,
                 contentDescription = null,
-                tint = FridgeGreen,
-                modifier = Modifier.size(19.dp)
+                tint = colors.primary,
+                modifier = Modifier.size(20.dp)
             )
         },
         trailingIcon = if (isPassword) {
@@ -95,23 +111,23 @@ fun AuthTextField(
                     Icon(
                         imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                         contentDescription = if (passwordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu",
-                        tint = FridgeGreen,
-                        modifier = Modifier.size(19.dp)
+                        tint = colors.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
         } else null,
         visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation()
-            else VisualTransformation.None,
+        else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(
             keyboardType = if (email) KeyboardType.Email else if (isPassword) KeyboardType.Password else KeyboardType.Text
         ),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = FridgeGreen,
-            unfocusedBorderColor = FridgeBorder,
-            focusedContainerColor = Color.White,
-            unfocusedContainerColor = Color.White,
-            cursorColor = FridgeGreen
+            focusedBorderColor = colors.primary,
+            unfocusedBorderColor = colors.outlineVariant,
+            focusedContainerColor = colors.surfaceContainerLowest,
+            unfocusedContainerColor = colors.surfaceContainerLowest,
+            cursorColor = colors.primary
         )
     )
 }
@@ -126,18 +142,21 @@ fun PrimaryAuthButton(
     Button(
         onClick = onClick,
         enabled = !loading,
-        modifier = modifier.fillMaxWidth().height(48.dp),
-        shape = RoundedCornerShape(13.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = FridgeGreen)
+        modifier = modifier.fillMaxWidth().heightIn(min = 52.dp),
+        shape = MaterialTheme.shapes.large,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        )
     ) {
         if (loading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(20.dp),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onPrimary,
                 strokeWidth = 2.dp
             )
         } else {
-            Text(text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text(text, style = MaterialTheme.typography.labelLarge)
         }
     }
 }
@@ -149,28 +168,35 @@ fun RememberRow(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier,
+        modifier = modifier.heightIn(min = 48.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Checkbox(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            modifier = Modifier.size(30.dp),
-            colors = CheckboxDefaults.colors(
-                checkedColor = FridgeGreen,
-                uncheckedColor = FridgeMuted
+            colors = androidx.compose.material3.CheckboxDefaults.colors(
+                checkedColor = MaterialTheme.colorScheme.primary,
+                uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
         )
-        Text("Remember me", fontSize = 11.sp, color = FridgeText)
+        Text(
+            "Remember me",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
 @Composable
 fun SocialAuthRow(onSocialClick: (String) -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Or continue with", fontSize = 12.sp, color = FridgeMuted)
-        Spacer(Modifier.height(13.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(
+            "Or continue with",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             SocialButton(R.drawable.ic_google, "Google") { onSocialClick("Google") }
             SocialButton(R.drawable.ic_facebook, "Facebook") { onSocialClick("Facebook") }
         }
@@ -181,11 +207,10 @@ fun SocialAuthRow(onSocialClick: (String) -> Unit) {
 private fun SocialButton(iconResId: Int, description: String, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(11.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, FridgeBorder),
-        shadowElevation = 2.dp,
-        modifier = Modifier.size(width = 46.dp, height = 42.dp)
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.size(width = 56.dp, height = 48.dp)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Image(
@@ -199,11 +224,25 @@ private fun SocialButton(iconResId: Int, description: String, onClick: () -> Uni
 
 @Composable
 fun AuthError(message: String?) {
-    if (message != null) {
-        Text(
-            text = message,
-            color = MaterialTheme.colorScheme.error,
-            fontSize = 12.sp
-        )
+    AnimatedVisibility(
+        visible = message != null,
+        enter = fadeIn() + slideInVertically { -it / 2 },
+        exit = fadeOut() + slideOutVertically { -it / 2 }
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                Modifier.size(6.dp)
+                    .background(MaterialTheme.colorScheme.error, CircleShape)
+            )
+            Text(
+                text = message.orEmpty(),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
     }
 }

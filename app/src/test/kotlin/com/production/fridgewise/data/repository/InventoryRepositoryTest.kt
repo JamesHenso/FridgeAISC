@@ -1,6 +1,8 @@
 package com.production.fridgewise.data.repository
 
 import com.sun.net.httpserver.HttpServer
+import com.google.gson.JsonParser
+import com.production.fridgewise.domain.model.Fridge
 import java.net.InetSocketAddress
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
@@ -32,6 +34,48 @@ class InventoryRepositoryTest {
             assertEquals(5, repo.stats("jwt", "f1").inStock)
             assertEquals(listOf("Bearer jwt", "Bearer jwt", "Bearer jwt"), tokens)
             assertEquals("/fridges/f1/foods?location=fridge&q=c%C3%A0+%26+chua", paths[1])
+        } finally { server.stop(0) }
+    }
+
+    @Test fun createFridgePostsNameAndParsesCreatedFridge() = runBlocking {
+        var method: String? = null
+        var body = ""
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/") { exchange ->
+            method = exchange.requestMethod
+            body = exchange.requestBody.bufferedReader().use { it.readText() }
+            val bytes = """{"id":"f9","name":"Tủ bếp"}""".toByteArray()
+            exchange.sendResponseHeaders(201, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
+        server.start()
+        try {
+            val fridge = InventoryRepository("http://127.0.0.1:${server.address.port}").createFridge("jwt", "Tủ bếp")
+            assertEquals(Fridge("f9", "Tủ bếp"), fridge)
+            assertEquals("POST", method)
+            assertEquals("Tủ bếp", JsonParser.parseString(body).asJsonObject.get("name").asString)
+        } finally { server.stop(0) }
+    }
+
+    @Test fun deleteFoodSendsAuthenticatedDeleteToTheFoodPath() = runBlocking {
+        var method: String? = null
+        var path: String? = null
+        var token: String? = null
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/") { exchange ->
+            method = exchange.requestMethod
+            path = exchange.requestURI.path
+            token = exchange.requestHeaders.getFirst("Authorization")
+            val bytes = """{"deleted":1}""".toByteArray()
+            exchange.sendResponseHeaders(200, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
+        server.start()
+        try {
+            InventoryRepository("http://127.0.0.1:${server.address.port}").deleteFood("jwt", "food-1")
+            assertEquals("DELETE", method)
+            assertEquals("/fridges/foods/food-1", path)
+            assertEquals("Bearer jwt", token)
         } finally { server.stop(0) }
     }
 

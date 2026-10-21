@@ -1,5 +1,6 @@
 package com.production.fridgewise.ui.scan
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.production.fridgewise.data.repository.ScanRepository
@@ -9,6 +10,7 @@ import java.io.InputStream
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,6 +37,7 @@ data class ReceiptReviewState(
     val labelScanning: Boolean = false,
     val committing: Boolean = false,
     val commitError: String? = null,
+    val saved: Boolean = false,
     val completed: Boolean = false
 )
 
@@ -114,7 +117,7 @@ class ReceiptReviewViewModel(
         saveJob = viewModelScope.launch {
             try {
                 repository.updateItem(token, scanId, item)
-                _uiState.update { state -> state.copy(items = state.items.map { if (it.id == item.id) item else it }, editingId = null, labelSuggestion = null) }
+                _uiState.update { state -> state.copy(items = state.items.map { if (it.id == item.id) item.copy(imageUrl = if (it.ingredientId == item.ingredientId) item.imageUrl else null) else it }, editingId = null, labelSuggestion = null) }
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 currentCoroutineContext().ensureActive()
@@ -126,12 +129,18 @@ class ReceiptReviewViewModel(
         val state = _uiState.value
         val scanId = state.scanId ?: return
         if (state.committing || state.completed || state.items.isEmpty() || state.items.any { it.ingredientId.isNullOrBlank() }) return
-        _uiState.update { it.copy(committing = true, commitError = null) }
+        _uiState.update { it.copy(committing = true, commitError = null, saved = false) }
         commitJob = viewModelScope.launch {
+            val startedAt = SystemClock.elapsedRealtime()
             try {
                 // Inventory no longer asks users to choose fridge/freezer. The backend
                 // stores a compatibility default for the legacy location column.
                 repository.commit(token, scanId)
+                // Keep the put-away animation on screen when the network is faster than it.
+                val remaining = PUT_AWAY_MIN_MILLIS - (SystemClock.elapsedRealtime() - startedAt)
+                if (remaining > 0) delay(remaining)
+                _uiState.update { it.copy(saved = true) }
+                delay(PUT_AWAY_SUCCESS_MILLIS)
                 _uiState.update { it.copy(completed = true) }
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
@@ -141,4 +150,9 @@ class ReceiptReviewViewModel(
         }
     }
     fun cancelPending() { loadJob?.cancel(); saveJob?.cancel(); commitJob?.cancel() }
+
+    private companion object {
+        const val PUT_AWAY_MIN_MILLIS = 1_400L
+        const val PUT_AWAY_SUCCESS_MILLIS = 1_000L
+    }
 }

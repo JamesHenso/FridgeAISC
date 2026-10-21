@@ -25,11 +25,7 @@ class RecipesRepository(private val baseUrl: String = BuildConfig.API_BASE_URL) 
         val path = if (query.isBlank() && fridgeId != null) {
             "recipes/match?fridge_id=${encode(fridgeId)}&limit=5$extraQuery"
         } else "recipes/search?name=${encode(query.trim())}&limit=50$extraQuery"
-        return request(token, path).asJsonArray.map {
-            val row = it.asJsonObject
-            Recipe(row.get("id").asString, row.get("name").asString, row.string("imageUrl"),
-                row.string("servings")?.toIntOrNull(), row.string("time")?.toIntOrNull(), row.string("difficulty"))
-        }
+        return request(token, path).asJsonArray.map { it.asJsonObject.toRecipe() }
     }
 
     suspend fun cookingMethods(token: String): List<String> = request(token, "recipes/methods")
@@ -44,7 +40,7 @@ class RecipesRepository(private val baseUrl: String = BuildConfig.API_BASE_URL) 
         val ingredients = root.getAsJsonArray("ingredients")?.map {
             val row = it.asJsonObject
             RecipeIngredient(row.string("ingredientId"), row.string("name") ?: "Nguyên liệu",
-                row.string("quantity"), row.string("unit"))
+                row.string("quantity"), row.string("unit"), com.production.fridgewise.data.apiImageUrl(row.string("image_url"), baseUrl))
         }.orEmpty()
         val haveNeed = root.get("haveNeed")?.takeUnless { it.isJsonNull }?.asJsonObject
         fun matches(key: String): List<RecipeIngredient>? = haveNeed?.getAsJsonArray(key)?.map { value ->
@@ -70,6 +66,9 @@ class RecipesRepository(private val baseUrl: String = BuildConfig.API_BASE_URL) 
 
     suspend fun favorites(token: String): Set<String> = request(token, "favorites").asJsonArray
         .map { it.asJsonObject.get("id").asString }.toSet()
+
+    suspend fun favoriteRecipes(token: String): List<Recipe> = request(token, "favorites").asJsonArray
+        .map { it.asJsonObject.toRecipe() }
 
     suspend fun setFavorite(token: String, recipeId: String, favorite: Boolean) {
         if (favorite) {
@@ -106,5 +105,9 @@ class RecipesRepository(private val baseUrl: String = BuildConfig.API_BASE_URL) 
     }
 
     private fun encode(value: String) = URLEncoder.encode(value, "UTF-8")
+    private fun JsonObject.toRecipe() = Recipe(
+        get("id").asString, get("name").asString, string("imageUrl"),
+        string("servings")?.toIntOrNull(), string("time")?.toIntOrNull(), string("difficulty")
+    )
     private fun JsonObject.string(key: String) = get(key)?.takeUnless { it.isJsonNull }?.asString
 }

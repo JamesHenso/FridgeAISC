@@ -23,13 +23,13 @@ class RecipeDetailViewModel(private val token: String, private val recipeId: Str
     private var job: Job? = null
     fun refresh() {
         job?.cancel()
-        state.value = RecipeDetailState()
+        state.value = state.value.copy(loading = true, error = null, needsSignIn = false)
         job = viewModelScope.launch {
             try { state.value = RecipeDetailState(loading = false, detail = repository.detail(token, recipeId, fridgeId))
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 currentCoroutineContext().ensureActive()
-                state.value = RecipeDetailState(loading = false, error = e.message ?: "Không tải được món ăn.",
+                state.value = state.value.copy(loading = false, error = e.message ?: "Không tải được món ăn.",
                     needsSignIn = e is RecipesApiException && e.statusCode == 401)
             }
         }
