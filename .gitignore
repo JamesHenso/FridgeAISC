@@ -64,3 +64,6 @@ output.json
 # IDE / OS
 .vscode/
 API.md
+# Catalog snapshots for reversible maintenance
+backend/backups/
+backend/reports/
