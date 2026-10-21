@@ -181,11 +181,11 @@ export async function fetchIngredientNames(
   ids: string[],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any = supabaseAdmin,
-): Promise<Array<{ id: string; name: string }>> {
+): Promise<Array<{ id: string; name: string; image_url?: string | null; category?: string | null }>> {
   if (ids.length === 0) return [];
-  const { data, error } = await client.from("Ingredients").select("id,name").in("id", ids);
+  const { data, error } = await client.from("Ingredients").select("id,name,image_url,category").in("id", ids);
   if (error) throw error;
-  return (data ?? []) as Array<{ id: string; name: string }>;
+  return (data ?? []) as Array<{ id: string; name: string; image_url?: string | null; category?: string | null }>;
 }
 
 // Reels: id mon co video (random tinh app-side o service).

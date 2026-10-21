@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import morgan from "morgan";
 import scansRoutes from "./routes/scans.routes.js";
@@ -11,6 +12,10 @@ export const app = express();
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 app.use(morgan("tiny"));
+// Bundled public ingredient icons, independent of the process working directory.
+app.use("/assets", express.static(fileURLToPath(new URL("../assets/", import.meta.url)), {
+  dotfiles: "deny", index: false, maxAge: "1d",
+}));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.use("/scans", scansRoutes);
 app.use("/recipes", recipesRoutes);

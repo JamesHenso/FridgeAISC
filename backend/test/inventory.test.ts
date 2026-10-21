@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { deleteFood, joinFridgeByCode, listFoods, listFridges, listMembers, renameFridge, updateFood } from "../src/repositories/fridge.repo.js";
+import { createFridge, deleteFood, joinFridgeByCode, listFoods, listFridges, listMembers, renameFridge, updateFood } from "../src/repositories/fridge.repo.js";
 
 // ponytail: same inline-chain fake style as scans.test.ts updateScanItem block
 function chain(data: unknown = []) {
@@ -104,6 +104,25 @@ describe("listFridges", () => {
   });
 });
 
+describe("createFridge", () => {
+  function db() {
+    return {
+      from: () => ({
+        insert: (row: { name: string }) => ({
+          select: () => ({
+            single: async () => ({ data: { id: "f9", name: row.name, invite_code: "ABC123" }, error: null }),
+          }),
+        }),
+      }),
+    };
+  }
+  it("rejects blank name, trims and returns owned fridge", async () => {
+    await assert.rejects(createFridge("u1", "  ", db() as never), /name required/);
+    assert.deepEqual(await createFridge("u1", " Tủ bếp ", db() as never),
+      { id: "f9", name: "Tủ bếp", invite_code: "ABC123", role: "owner" });
+  });
+});
+
 describe("joinFridgeByCode", () => {
   function db(found: unknown, insertErr: unknown = null) {
     return {
@@ -139,5 +158,29 @@ describe("listMembers", () => {
     ]);
     const empty = { from: () => ({ select: () => ({ eq: async () => ({ data: [], error: null }) }) }) };
     assert.deepEqual(await listMembers("f9", empty as never), []);
+  });
+});
+
+// Report needs actual catalog categories and OCR provenance, not inferred names.
+describe("listFoods report metadata", () => {
+  it("returns category with price and source, retaining foods without a catalog match", async () => {
+    const foods = [
+      { id: "f1", ingredient_id: "i1", price_vnd: 56604, source_type: "receipt" },
+      { id: "f2", ingredient_id: null, price_vnd: null, source_type: null },
+    ];
+    const queries: string[] = [];
+    const foodQuery = chain(foods);
+    const db = { from: (table: string) => table === "foods" ? {
+      select: (columns: string) => { queries.push(columns); return foodQuery; },
+    } : { select: (columns: string) => { queries.push(columns); return {
+      in: async () => ({ data: [{ id: "i1", category: "Thịt heo", image_url: "/assets/pork.webp" }], error: null }),
+    }; } } };
+    const result = await listFoods("fridge1", undefined, undefined, db);
+    assert.equal(result[0].category, "Thịt heo");
+    assert.equal(result[0].price_vnd, 56604);
+    assert.equal(result[0].source_type, "receipt");
+    assert.equal(result[1].category, null);
+    assert.ok(queries[0].includes("source_type"));
+    assert.ok(queries[1].includes("category"));
   });
 });

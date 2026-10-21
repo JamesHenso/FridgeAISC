@@ -13,6 +13,8 @@ import { rankByMissing, type FridgeItem, type MissingIngredient } from "../servi
 import { resolveIngredientId, type IngredientEntry } from "../lib/ingredients.js";
 
 export interface RecipeIngredientView {
+  image_url?: string | null;
+  category?: string | null;
   ingredientId: string | null;
   name: string | null;
   quantity: string | null;
@@ -74,12 +76,15 @@ export async function getRecipe(
   if (!info) throw Object.assign(new Error(`recipe ${recipeId} not found`), { status: 404 });
   const [rows, detail] = await Promise.all([fetchRows(recipeId), fetchDetail(recipeId)]);
   const ids = [...new Set(rows.map((r) => r.ingredientId).filter(Boolean) as string[])];
-  const names = new Map((await fetchNames(ids)).map((n) => [n.id, n.name]));
+  const catalog = new Map((await fetchNames(ids)).map((n) => [n.id, n]));
+  const names = new Map([...catalog].map(([id, row]) => [id, row.name]));
   const out: FullRecipe = {
     info,
     ingredients: rows.map((r) => ({
       ...r,
       name: (r.ingredientId && names.get(r.ingredientId)) || r.name,
+      image_url: r.ingredientId ? catalog.get(r.ingredientId)?.image_url ?? null : null,
+      category: r.ingredientId ? catalog.get(r.ingredientId)?.category ?? null : null,
     })),
     detail,
   };
